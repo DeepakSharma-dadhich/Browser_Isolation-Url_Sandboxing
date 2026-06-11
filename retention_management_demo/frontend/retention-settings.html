@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ArkMail Retention Settings</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --text: #172033;
+      --muted: #667085;
+      --line: #d8e2ef;
+      --header: #eaf2ff;
+      --blue: #1f6fd6;
+      --blue-dark: #174a91;
+      --danger: #b42318;
+      --danger-bg: #fff1f0;
+      --warn: #936b00;
+      --warn-bg: #fff7d6;
+      --success: #157347;
+      --success-bg: #e9f7ef;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      padding: 32px;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    .title {
+      font-size: 28px;
+      font-weight: 700;
+      margin: 0 0 6px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin: 0 0 24px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+      overflow: hidden;
+      margin-bottom: 18px;
+    }
+
+    .card-header {
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--line);
+      font-weight: 700;
+      background: #fbfdff;
+    }
+
+    .card-body {
+      padding: 22px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      color: #35445b;
+      margin-bottom: 7px;
+    }
+
+    select,
+    input {
+      width: 100%;
+      border: 1px solid #cbd7e6;
+      border-radius: 8px;
+      min-height: 42px;
+      padding: 0 12px;
+      font-size: 15px;
+      color: var(--text);
+      background: #fff;
+    }
+
+    .radio-row {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .radio-row label {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      margin: 0;
+      font-weight: 600;
+    }
+
+    .radio-row input {
+      width: auto;
+      min-height: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 12px 14px;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      background: var(--header);
+      color: #193b68;
+      font-weight: 700;
+    }
+
+    .muted { color: var(--muted); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      background: #eef4ff;
+      color: #1b4c91;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      margin-top: 18px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      min-height: 42px;
+      padding: 0 16px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .primary {
+      background: var(--blue);
+      color: white;
+    }
+
+    .primary:hover { background: var(--blue-dark); }
+
+    .secondary {
+      background: #edf2f7;
+      color: #24364f;
+    }
+
+    .danger {
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+
+    .alert {
+      display: none;
+      margin-top: 16px;
+      border-radius: 10px;
+      padding: 14px 16px;
+      line-height: 1.45;
+      border: 1px solid var(--line);
+    }
+
+    .alert.warn {
+      display: block;
+      color: var(--warn);
+      background: var(--warn-bg);
+      border-color: #f3d477;
+    }
+
+    .alert.success {
+      display: block;
+      color: var(--success);
+      background: var(--success-bg);
+      border-color: #bce3c9;
+    }
+
+    .alert.danger-box {
+      display: block;
+      color: var(--danger);
+      background: var(--danger-bg);
+      border-color: #ffc9c2;
+    }
+
+    .code-note {
+      margin-top: 18px;
+      background: #0b1f3a;
+      color: #d9e7ff;
+      border-radius: 10px;
+      padding: 14px;
+      font-family: Consolas, monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+      body { padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1 class="title">Retention Settings</h1>
+    <p class="subtitle">Production-style data lifecycle control for raw emails, quarantine, metadata, reports and audit logs.</p>
+
+    <section class="card">
+      <div class="card-header">Email Retention Policy</div>
+      <div class="card-body">
+        <div class="radio-row">
+          <label><input type="radio" name="mode" value="default" checked /> Default</label>
+          <label><input type="radio" name="mode" value="custom" /> Custom</label>
+        </div>
+
+        <div class="grid">
+          <div>
+            <label for="dataType">Data type</label>
+            <select id="dataType">
+              <option value="clean_raw_email">Clean raw emails</option>
+              <option value="suspicious_raw_email">Suspicious raw emails</option>
+              <option value="quarantine_email">Quarantined emails</option>
+              <option value="attachment">Attachments</option>
+              <option value="email_metadata">Email metadata</option>
+              <option value="scan_event">Scan events</option>
+              <option value="audit_log">Audit logs</option>
+              <option value="report">Reports</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="days">Retention days</label>
+            <input id="days" type="number" min="1" value="180" />
+          </div>
+
+          <div>
+            <label for="scope">Apply scope</label>
+            <select id="scope">
+              <option value="new_data_only">New data only</option>
+              <option value="existing_and_new">Existing + new data</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="deleteMode">Delete mode</label>
+            <select id="deleteMode">
+              <option value="soft_delete_then_purge">Soft delete then purge</option>
+              <option value="hard_delete_on_expiry">Hard delete on expiry</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="warningBox" class="alert"></div>
+
+        <div class="actions">
+          <button class="secondary" id="dryRunBtn">Dry Run</button>
+          <button class="primary" id="applyBtn">Apply Policy</button>
+          <button class="danger" id="cleanupBtn">Run Cleanup</button>
+        </div>
+
+        <div class="code-note" id="apiLog">// API activity appears here.</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">Current Policies</div>
+      <div class="card-body">
+        <table>
+          <thead>
+            <tr>
+              <th>Data Type</th>
+              <th>Retention</th>
+              <th>Version</th>
+              <th>Delete Mode</th>
+            </tr>
+          </thead>
+          <tbody id="policyRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">Production Notes For Developer</div>
+      <div class="card-body">
+        <table>
+          <thead>
+            <tr>
+              <th>Rule</th>
+              <th>Why it matters</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Use policy versioning</strong></td>
+              <td>Never overwrite retention silently. Each change must be auditable.</td>
+            </tr>
+            <tr>
+              <td><strong>Dry-run before shortening</strong></td>
+              <td>Show how many records will become eligible for deletion before applying.</td>
+            </tr>
+            <tr>
+              <td><strong>Legal hold wins</strong></td>
+              <td>Cleanup must skip records under investigation or legal hold.</td>
+            </tr>
+            <tr>
+              <td><strong>Cleanup is async</strong></td>
+              <td>Do not delete inside the admin request. A worker should process expired data safely.</td>
+            </tr>
+            <tr>
+              <td><strong>Audit every change</strong></td>
+              <td>Policy changes and deletion runs must be written to audit logs/SIEM.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    /*
+      This page can work in two modes:
+      1. Demo mode: uses in-browser fake state when backend is not running.
+      2. API mode: calls FastAPI endpoints if backend is running on API_BASE.
+
+      Production frontend flow:
+      - Admin edits retention.
+      - Frontend calls /dry-run.
+      - If shortening affects existing data, show warning + confirmation.
+      - Frontend calls /policies with confirmation.
+      - Cleanup worker deletes later, not immediately in the UI request.
+    */
+
+    const TENANT_ID = "11111111-1111-1111-1111-111111111111";
+    const API_BASE = "http://127.0.0.1:8000/api/retention";
+
+    const defaults = {
+      clean_raw_email: 14,
+      suspicious_raw_email: 30,
+      quarantine_email: 180,
+      attachment: 30,
+      email_metadata: 365,
+      scan_event: 365,
+      audit_log: 180,
+      report: 365,
+    };
+
+    let policies = Object.entries(defaults).map(([dataType, days]) => ({
+      data_type: dataType,
+      retention_days: days,
+      version: 1,
+      delete_mode: "soft_delete_then_purge",
+    }));
+
+    const dataType = document.getElementById("dataType");
+    const days = document.getElementById("days");
+    const scope = document.getElementById("scope");
+    const deleteMode = document.getElementById("deleteMode");
+    const policyRows = document.getElementById("policyRows");
+    const warningBox = document.getElementById("warningBox");
+    const apiLog = document.getElementById("apiLog");
+
+    function label(value) {
+      return value.replaceAll("_", " ").replace(/\b\w/g, char => char.toUpperCase());
+    }
+
+    function log(message, payload) {
+      apiLog.textContent = `${message}\n${JSON.stringify(payload, null, 2)}`;
+    }
+
+    function showAlert(type, message) {
+      warningBox.className = `alert ${type}`;
+      warningBox.textContent = message;
+    }
+
+    function clearAlert() {
+      warningBox.className = "alert";
+      warningBox.textContent = "";
+    }
+
+    function renderPolicies() {
+      policyRows.innerHTML = policies
+        .map(policy => `
+          <tr>
+            <td><strong>${label(policy.data_type)}</strong></td>
+            <td><span class="badge">${policy.retention_days} days</span></td>
+            <td>v${policy.version}</td>
+            <td class="muted">${label(policy.delete_mode)}</td>
+          </tr>
+        `)
+        .join("");
+    }
+
+    function currentPolicy() {
+      return policies.find(policy => policy.data_type === dataType.value);
+    }
+
+    function requestPayload(confirm = false) {
+      return {
+        tenant_id: TENANT_ID,
+        data_type: dataType.value,
+        retention_days: Number(days.value),
+        apply_scope: scope.value,
+        delete_mode: deleteMode.value,
+        confirm_existing_shortening: confirm,
+        actor: "security.admin@arkmail.local",
+      };
+    }
+
+    async function tryApi(path, body) {
+      const response = await fetch(`${API_BASE}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw await response.json();
+      return response.json();
+    }
+
+    function demoDryRun(payload) {
+      const policy = currentPolicy();
+      const shortening = policy && payload.retention_days < policy.retention_days;
+      const affected = payload.apply_scope === "existing_and_new" && shortening ? 1 : 0;
+
+      return {
+        tenant_id: TENANT_ID,
+        data_type: payload.data_type,
+        current_retention_days: policy ? policy.retention_days : null,
+        requested_retention_days: payload.retention_days,
+        apply_scope: payload.apply_scope,
+        affected_existing_records: affected,
+        legal_hold_records_skipped: payload.apply_scope === "existing_and_new" ? 1 : 0,
+        warning: affected
+          ? `Shortening retention will make ${affected} existing records eligible for deletion.`
+          : null,
+      };
+    }
+
+    function demoApply(payload) {
+      const index = policies.findIndex(policy => policy.data_type === payload.data_type);
+      const previous = policies[index];
+      const dryRun = demoDryRun(payload);
+
+      if (dryRun.affected_existing_records && !payload.confirm_existing_shortening) {
+        throw {
+          detail: `${dryRun.affected_existing_records} existing records will become eligible for deletion. Confirm before applying.`,
+        };
+      }
+
+      policies[index] = {
+        data_type: payload.data_type,
+        retention_days: payload.retention_days,
+        version: previous.version + 1,
+        delete_mode: payload.delete_mode,
+      };
+
+      return {
+        policy_id: crypto.randomUUID(),
+        version: policies[index].version,
+        affected_existing_records: dryRun.affected_existing_records,
+        message: "Policy updated. Cleanup worker will process expired records.",
+      };
+    }
+
+    async function dryRun() {
+      clearAlert();
+      const payload = requestPayload();
+      let result;
+      try {
+        result = await tryApi("/dry-run", payload);
+      } catch {
+        result = demoDryRun(payload);
+      }
+
+      if (result.warning) showAlert("warn", result.warning);
+      else showAlert("success", "No existing records will be deleted by this change.");
+      log("Dry run result", result);
+    }
+
+    async function applyPolicy() {
+      const payload = requestPayload(false);
+      let dry = demoDryRun(payload);
+
+      try {
+        dry = await tryApi("/dry-run", payload);
+      } catch {
+        // Backend not running: keep demo dry-run.
+      }
+
+      let confirmed = false;
+      if (dry.warning) {
+        confirmed = window.confirm(`${dry.warning}\n\nApply to existing data anyway?`);
+        if (!confirmed) return;
+      }
+
+      const finalPayload = requestPayload(confirmed);
+      let result;
+      try {
+        result = await tryApi("/policies", finalPayload);
+      } catch (error) {
+        try {
+          result = demoApply(finalPayload);
+        } catch (demoError) {
+          showAlert("danger-box", demoError.detail || "Policy update blocked.");
+          log("Apply failed", demoError);
+          return;
+        }
+      }
+
+      showAlert("success", result.message);
+      renderPolicies();
+      log("Policy update result", result);
+    }
+
+    async function cleanup() {
+      let result;
+      try {
+        const response = await fetch(`${API_BASE}/${TENANT_ID}/cleanup`, { method: "POST" });
+        if (!response.ok) throw await response.json();
+        result = await response.json();
+      } catch {
+        result = {
+          soft_deleted: 1,
+          hard_purged: 0,
+          skipped_legal_hold: 1,
+        };
+      }
+      showAlert("success", "Cleanup worker completed.");
+      log("Cleanup result", result);
+    }
+
+    document.querySelectorAll('input[name="mode"]').forEach(radio => {
+      radio.addEventListener("change", () => {
+        const isCustom = radio.value === "custom" && radio.checked;
+        days.disabled = !isCustom;
+        scope.disabled = !isCustom;
+        deleteMode.disabled = !isCustom;
+      });
+    });
+
+    dataType.addEventListener("change", () => {
+      const policy = currentPolicy();
+      days.value = policy.retention_days;
+      clearAlert();
+    });
+
+    document.getElementById("dryRunBtn").addEventListener("click", dryRun);
+    document.getElementById("applyBtn").addEventListener("click", applyPolicy);
+    document.getElementById("cleanupBtn").addEventListener("click", cleanup);
+
+    days.disabled = true;
+    scope.disabled = true;
+    deleteMode.disabled = true;
+    renderPolicies();
+  </script>
+</body>
+</html>
