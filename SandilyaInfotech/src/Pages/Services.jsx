@@ -1,0 +1,17 @@
+import React from 'react'
+import OurServices from '../Components/OurServices'
+import TopBanner from '../Components/TopBanner'
+import Footer from '../Components/Footer'
+
+
+const Services = () => {
+  return (
+    <>
+      <TopBanner text="Our Services"/>
+      <OurServices/>
+      <Footer/>
+    </>
+  )
+}
+
+export default Services

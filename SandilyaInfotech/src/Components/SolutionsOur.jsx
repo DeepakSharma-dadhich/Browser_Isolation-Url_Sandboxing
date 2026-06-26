@@ -1,0 +1,122 @@
+import React from "react";
+import CollaborationSol from "../assets/CollaborationSol.png";
+import Security2 from "../assets/security2.png";
+import Wireless from "../assets/wireless.png";
+import CiscoMeraki from "../assets/ciscomeraki.png";
+import StructuredCabling from "../assets/SCaabling.png";
+import EnterpriseNetworking from "../assets/ENetworking.png";
+import DigitalTransformation from "../assets/digitalTransformation.png";
+import DisasterRecovery from "../assets/disasterRecovery.png";
+import {
+  FaUsers,
+  FaShieldAlt,
+  FaWifi,
+  FaCloud,
+  FaNetworkWired,
+  FaExchangeAlt,
+  FaSyncAlt,
+  FaDatabase,
+} from "react-icons/fa";
+
+const solutions = [
+  {
+    image: CollaborationSol,
+    title: "Collaboration Solution",
+    description:
+      "Collaboration describes the combination of communications and collaboration technologies. The modular elements of the Collaboration Architecture work together to deliver compelling collaboration experiences both within and among organizations.",
+    icon: <FaUsers />,
+  },
+  {
+    image: Security2,
+    title: "Security",
+    description:
+      "In companies where the network is essential, special attention must be given to security to prevent virus attacks, unauthorized access, and data theft. Robust security measures not only protect sensitive information but also ensure business continuity and build trust with clients.",
+    icon: <FaShieldAlt />,
+  },
+  {
+    image: Wireless,
+    title: "Wireless",
+    description:
+      "All corporates have a fundamental need for wireless solutions, and provides cutting-edge wireless technology to ensure seamless connectivity and enhanced productivity.",
+    icon: <FaWifi />,
+  },
+  {
+    image: CiscoMeraki,
+    title: "Cisco Meraki",
+    description:
+      "Cisco Meraki operates the industry’s largest Cloud Networking services. It is the leader in managed wireless, switching & security solutions.",
+    icon: <FaCloud />,
+  },
+  {
+    image: StructuredCabling,
+    title: "Structured Cabling",
+    description:
+      "Structured cabling solutions of Proactive point towards the system of wiring used by organizations to facilitate easy transmission of data and information.",
+    icon: <FaNetworkWired />,
+  },
+  {
+    image: EnterpriseNetworking,
+    title: "Enterprise Networking",
+    description:
+      "Networking Solutions are highly mandatory for success of any organization. At EDEN TECHFLOW PVT LTD we offer reliable stability and flexibility.",
+    icon: <FaExchangeAlt />,
+  },
+  {
+    image: DigitalTransformation,
+    title: "Digital Transformation",
+    description:
+      "We offer reliable and flexible digital solutions for businesses aiming to modernize and stay ahead in the competitive digital era.",
+    icon: <FaSyncAlt />,
+  },
+  {
+    image: DisasterRecovery,
+    title: "Disaster Recovery",
+    description:
+      "We provide reliable disaster recovery solutions to ensure your critical data is protected and restored in case of unexpected failures.",
+    icon: <FaDatabase />,
+  },
+];
+
+const SolutionsOur = () => {
+  return (
+    <section className="bg-white py-20">
+      <div className="container mx-auto px-8 md:px-12 lg:px-20">
+        {/* Cards */}
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          {solutions.map((item, index) => (
+            <div
+              key={index}
+              className="bg-slate-50 rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition duration-300"
+            >
+              {/* Image */}
+              <div className="relative">
+                <img
+                  src={item.image}
+                  alt={item.title}
+                  className="h-44 w-full object-cover"
+                />
+
+                <div className="absolute bottom-0 right-4 translate-y-1/2 w-12 h-12 rounded-xl bg-white shadow flex items-center justify-center text-blue-700 text-lg">
+                  {item.icon}
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-6 pt-8">
+                <h3 className="text-xl font-semibold text-slate-900 mb-4">
+                  {item.title}
+                </h3>
+
+                <p className="text-gray-600 leading-7 text-sm">
+                  {item.description}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default SolutionsOur;
