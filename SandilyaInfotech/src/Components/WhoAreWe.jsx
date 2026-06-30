@@ -28,7 +28,7 @@ const WhoAreWe = () => {
             {/* Primary theme blue border divider anchor line */}
             <div className="w-[100px] h-[4px] bg-[#0170b9] mb-6"></div>
 
-            <p className="text-[#4b4f58] font-sans text-sm md:text-[14px] leading-[1.65] mb-4">
+            <p className="text-[#4b4f58] font-sans text-sm md:text-[14px] leading-[1.65] mb-4 text-justify">
               Sandilya Infotech is a preferred Solution provider of integrated
               information and communications technology (ICT) solutions,
               delivering secure, converged network computing and communications
@@ -44,7 +44,7 @@ const WhoAreWe = () => {
               enable you to invest with confidence.
             </p>
 
-            <p className="text-[#4b4f58] font-sans text-sm md:text-[14px] leading-[1.65]">
+            <p className="text-[#4b4f58] font-sans text-sm md:text-[14px] leading-[1.65] text-justify">
               Sandilya helps customers do business better by leveraging our
               industry-wide experience, deep technology expertise, comprehensive
               portfolio of services and vertically aligned business model.

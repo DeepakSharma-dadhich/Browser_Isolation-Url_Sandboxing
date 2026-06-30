@@ -2,6 +2,7 @@ import React from 'react'
 import TopBanner from '../Components/TopBanner'
 import DisasterRecoSolution from '../Components/DisasterRecoSolution'
 import RelatedDisasterSolution from '../Components/RelatedDisasterSolution'
+import Footer from '../Components/Footer';
 
 const DisasterSolution = () => {
   return (
@@ -9,6 +10,7 @@ const DisasterSolution = () => {
       <TopBanner text="Disaster Recovery"/>
       <DisasterRecoSolution/>
       <RelatedDisasterSolution/>
+      <Footer/>
     </>
   )
 }

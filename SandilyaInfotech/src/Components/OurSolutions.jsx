@@ -52,11 +52,11 @@ const OurSolutions = () => {
           {/* Thin Blue Line */}
           <div className="w-[120px] h-[1px] bg-[#4564da] mx-auto mt-4 mb-7"></div>
 
-          <p className="max-w-[800px] mx-auto text-[#6f7684] text-[14px] leading-7 px-6 sm:px-12">
+          {/* <p className="max-w-[800px] mx-auto text-[#6f7684] text-[14px] leading-7 px-6 sm:px-12">
             Sed Fringilla Mauris Sit Amet Nibh. Donec Sodales Sagittis Magna.
             Sed Consequat, Leo Eget Bibendum Sodales, Augue Velit Cursus Nunc,
             Quis Gravida Magna Mi A Libero.
-          </p>
+          </p> */}
         </div>
 
         {/* Services */}

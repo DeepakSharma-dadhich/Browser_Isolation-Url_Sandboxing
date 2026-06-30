@@ -62,10 +62,24 @@ const services = [
   },
 ];
 
-const OurServices = () => {
+const OurServices = ({ showHeading = true }) => {
   return (
     <section className="bg-[#f5f7fb] py-20">
-      <div className="max-w-[1600px] mx-auto px-16 md:px-20 lg:px-32">
+      {/* <div className="max-w-[1600px] mx-auto px-16 md:px-20 lg:px-32"> */}
+      <div className="container mx-auto px-8 md:px-12 lg:px-20">
+        {showHeading && (
+          <div className="text-center mb-20">
+            <h2 className="text-[28px] md:text-[42px] font-semibold text-black">
+              Our Services
+            </h2>
+
+            {/* Thin Blue Line */}
+            <div className="w-[120px] h-[1px] bg-[#4564da] mx-auto mt-4 mb-7"></div>
+          </div>
+        )}
+
+        {/* Cards */}
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4"></div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {services.map((service, index) => (
             <div
@@ -88,7 +102,13 @@ const OurServices = () => {
               </p>
 
               {/* Button */}
-              <Link to={service.link}>
+              <Link to={service.link}
+  onClick={() =>
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    })
+  }>
                 <button className="border border-[#0057c2] text-[#0057c2] px-5 py-2 rounded-full text-sm font-medium hover:bg-[#0057c2] hover:text-white transition-all duration-300">
                   Learn More
                 </button>

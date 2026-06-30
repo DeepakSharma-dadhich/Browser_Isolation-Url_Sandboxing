@@ -153,7 +153,7 @@ const ContactUs = () => {
 
                 <div>
                   <label className="block text-sm text-gray-600 mb-2">
-                    Full Name *
+                    Full Name <span className="text-red-500">*</span>
                   </label>
 
                   <input
@@ -174,7 +174,7 @@ const ContactUs = () => {
 
                 <div>
                   <label className="block text-sm text-gray-600 mb-2">
-                    Email Address *
+                    Email Address <span className="text-red-500">*</span>
                   </label>
 
                   <input
@@ -199,7 +199,7 @@ const ContactUs = () => {
 
                 <div>
                   <label className="block text-sm text-gray-600 mb-2">
-                    Phone Number *
+                    Phone Number <span className="text-red-500">*</span>
                   </label>
 
                   <input
@@ -253,7 +253,7 @@ const ContactUs = () => {
               {/* Message */}
               <div>
                 <label className="block text-sm text-gray-600 mb-2">
-                  Message *
+                  Message <span className="text-red-500">*</span>
                 </label>
 
                 <textarea

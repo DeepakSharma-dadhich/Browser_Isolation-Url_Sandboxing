@@ -8,7 +8,7 @@ const Solutions = () => {
   return (
     <>
       <TopBanner text=" Our Solutions" />
-      <SolutionsOur/>
+      <SolutionsOur showHeading={false}/>
       <Footer/>
     </>
   )

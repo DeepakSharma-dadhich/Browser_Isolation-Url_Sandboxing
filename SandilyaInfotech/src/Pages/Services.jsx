@@ -8,7 +8,7 @@ const Services = () => {
   return (
     <>
       <TopBanner text="Our Services"/>
-      <OurServices/>
+      <OurServices showHeading={false}/>
       <Footer/>
     </>
   )

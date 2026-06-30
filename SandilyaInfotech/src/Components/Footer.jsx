@@ -9,19 +9,44 @@ const Footer = () => {
   });
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  const { name, value } = e.target;
+
+  // Prevent leading spaces
+  setFormData({
+    ...formData,
+    [name]: value.replace(/^\s+/, ""),
+  });
+};
 
   const handleSubmit = (e) => {
-    e.preventDefault();
-    console.log("Form Submitted:", formData);
-    alert("Message submitted successfully!");
-    setFormData({
-      name: "",
-      email: "",
-      message: "",
-    });
-  };
+  e.preventDefault();
+
+  const { name, email, message } = formData;
+
+  if (!/^[A-Za-z ]+$/.test(name)) {
+    alert("Name should contain only letters and spaces.");
+    return;
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+    alert("Please enter a valid email address.");
+    return;
+  }
+
+  if (message.trim().length < 10) {
+    alert("Message must be at least 10 characters.");
+    return;
+  }
+
+  console.log("Form Submitted:", formData);
+  // alert("Message submitted successfully!");
+
+  setFormData({
+    name: "",
+    email: "",
+    message: "",
+  });
+};
 
   return (
     <footer className="bg-[#3a3a3a] text-[#b4b4b4] font-sans pt-20 relative">
@@ -37,12 +62,6 @@ const Footer = () => {
             Sandilya Infotech Pvt Ltd is a preferred Solution provider of
             integrated ICT solutions, delivering secure services to businesses.
           </p>
-          {/* <Link
-            to="/#who-we-are"
-            className="text-white text-[13.5px] font-normal hover:underline mb-5 font-sans"
-          >
-            Read More
-          </Link> */}
 
           {/* Social Icons Array */}
           <div className="flex items-center gap-2 mt-1">
@@ -131,9 +150,9 @@ const Footer = () => {
                 </svg>
               </div>
               <span className="leading-[1.4] tracking-wide">
-                B-215, Ground Floor, Brij Vihar,
+                505-506, 5th Floor, Devika Tower,
                 <br />
-                Ghaziabad, U.P. 201011
+                Chander Nagar, Ghaziabad, U.P. 201011, India
               </span>
             </li>
 
@@ -175,34 +194,44 @@ const Footer = () => {
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             {/* Name Input */}
             <input
-              type="text"
-              name="name"
-              placeholder="Your name*"
-              required
-              value={formData.name}
-              onChange={handleChange}
-              className="w-full bg-white text-slate-800 text-[13.5px] placeholder-[#757575] px-3.5 py-2.5 rounded-[2px] outline-none font-sans"
-            />
+  type="text"
+  name="name"
+  placeholder="Your name*"
+  required
+  minLength={3}
+  maxLength={50}
+  pattern="^[A-Za-z ]+$"
+  title="Name should contain only letters and spaces."
+  value={formData.name}
+  onChange={handleChange}
+  className="w-full bg-white text-slate-800 text-[13.5px] placeholder-[#757575] px-3.5 py-2.5 rounded-[2px] outline-none font-sans"
+/>
             {/* Email Input */}
             <input
-              type="email"
-              name="email"
-              placeholder="Your email*"
-              required
-              value={formData.email}
-              onChange={handleChange}
-              className="w-full bg-white text-slate-800 text-[13.5px] placeholder-[#757575] px-3.5 py-2.5 rounded-[2px] outline-none font-sans"
-            />
+  type="email"
+  name="email"
+  placeholder="Your email*"
+  required
+  maxLength={100}
+  pattern="^[^\s@]+@[^\s@]+\.[^\s@]{2,}$"
+  title="Please enter a valid email address."
+  value={formData.email}
+  onChange={handleChange}
+  className="w-full bg-white text-slate-800 text-[13.5px] placeholder-[#757575] px-3.5 py-2.5 rounded-[2px] outline-none font-sans"
+/>
             {/* Message Textarea */}
             <textarea
-              name="message"
-              placeholder="Your message*"
-              rows="4"
-              required
-              value={formData.message}
-              onChange={handleChange}
-              className="w-full bg-white text-slate-800 text-[13.5px] placeholder-[#757575] px-3.5 py-2.5 rounded-[2px] outline-none font-sans resize-none h-[115px]"
-            />
+  name="message"
+  placeholder="Your message*"
+  rows="4"
+  required
+  minLength={10}
+  maxLength={500}
+  title="Message should be between 10 and 500 characters."
+  value={formData.message}
+  onChange={handleChange}
+  className="w-full bg-white text-slate-800 text-[13.5px] placeholder-[#757575] px-3.5 py-2.5 rounded-[2px] outline-none font-sans resize-none h-[115px]"
+/>
             {/* Submit Button */}
             <button
               type="submit"
@@ -218,7 +247,7 @@ const Footer = () => {
       <div className="border-t border-neutral-600/30 bg-[#2d2d2d] py-6">
         <div className="max-w-[1240px] mx-auto px-6 text-center">
           <p className="text-[12.5px] text-white tracking-wide font-sans">
-            Copyright &copy; 2019 Sandilya Infotech | Developed by Digify Pro
+            Copyright &copy; 2026 Sandilya Infotech Pvt. Ltd.
           </p>
         </div>
       </div>

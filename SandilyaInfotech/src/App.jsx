@@ -1,7 +1,10 @@
 import React, { useEffect } from "react";
-import Navbar from "./Components/Navbar/Navbar";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
+import Navbar from "./Components/Navbar/Navbar";
+import ScrollToTopRoute from "./Components/ScrollToTopRoute";
+
+// Pages
 import Home from "./Pages/Home";
 import About from "./Pages/About";
 import Services from "./Pages/Services";
@@ -19,19 +22,16 @@ import SurveillanceService from "./Pages/SurveillanceService";
 import EmergingService from "./Pages/EmergingService";
 import ConsultingService from "./Pages/ConsultingService";
 
-import ScrollToTop from "react-scroll-to-top";
-
 // AOS
 import AOS from "aos";
 import "aos/dist/aos.css";
 
-
-// Routes
 const router = createBrowserRouter([
   {
     path: "/",
     element: (
       <>
+        <ScrollToTopRoute />
         <Navbar />
         <Home />
       </>
@@ -41,6 +41,7 @@ const router = createBrowserRouter([
     path: "/about",
     element: (
       <>
+        <ScrollToTopRoute />
         <Navbar />
         <About />
       </>
@@ -50,6 +51,7 @@ const router = createBrowserRouter([
     path: "/services",
     element: (
       <>
+        <ScrollToTopRoute />
         <Navbar />
         <Services />
       </>
@@ -59,8 +61,9 @@ const router = createBrowserRouter([
     path: "/infrastructure-service",
     element: (
       <>
+        <ScrollToTopRoute />
         <Navbar />
-        <InfrastructureService/>
+        <InfrastructureService />
       </>
     ),
   },
@@ -68,8 +71,9 @@ const router = createBrowserRouter([
     path: "/integration-service",
     element: (
       <>
+        <ScrollToTopRoute />
         <Navbar />
-        <IntegrationService/>
+        <IntegrationService />
       </>
     ),
   },
@@ -77,8 +81,9 @@ const router = createBrowserRouter([
     path: "/surveillance-service",
     element: (
       <>
+        <ScrollToTopRoute />
         <Navbar />
-        <SurveillanceService/>
+        <SurveillanceService />
       </>
     ),
   },
@@ -86,8 +91,9 @@ const router = createBrowserRouter([
     path: "/emerging-service",
     element: (
       <>
+        <ScrollToTopRoute />
         <Navbar />
-        <EmergingService/>
+        <EmergingService />
       </>
     ),
   },
@@ -95,8 +101,9 @@ const router = createBrowserRouter([
     path: "/consulting-service",
     element: (
       <>
+        <ScrollToTopRoute />
         <Navbar />
-        <ConsultingService/>
+        <ConsultingService />
       </>
     ),
   },
@@ -104,15 +111,28 @@ const router = createBrowserRouter([
     path: "/solutions",
     element: (
       <>
+        <ScrollToTopRoute />
         <Navbar />
         <Solutions />
       </>
     ),
   },
   {
+    path: "/contact",
+    element: (
+      <>
+        <ScrollToTopRoute />
+        <Navbar />
+        <Contact />
+      </>
+    ),
+  },
+
+  {
     path: "/enterprise-solution",
     element: (
       <>
+        <ScrollToTopRoute />
         <Navbar />
         <EnterpriseSolution />
       </>
@@ -122,6 +142,7 @@ const router = createBrowserRouter([
     path: "/cloud-solution",
     element: (
       <>
+        <ScrollToTopRoute />
         <Navbar />
         <CloudSolution />
       </>
@@ -131,6 +152,7 @@ const router = createBrowserRouter([
     path: "/cybersecurity-solution",
     element: (
       <>
+        <ScrollToTopRoute />
         <Navbar />
         <CybersecuritySolution />
       </>
@@ -140,6 +162,7 @@ const router = createBrowserRouter([
     path: "/digital-solution",
     element: (
       <>
+        <ScrollToTopRoute />
         <Navbar />
         <DigitalSolution />
       </>
@@ -149,6 +172,7 @@ const router = createBrowserRouter([
     path: "/disaster-solution",
     element: (
       <>
+        <ScrollToTopRoute />
         <Navbar />
         <DisasterSolution />
       </>
@@ -158,17 +182,9 @@ const router = createBrowserRouter([
     path: "/managed-solution",
     element: (
       <>
+        <ScrollToTopRoute />
         <Navbar />
         <ManagedSolution />
-      </>
-    ),
-  },
-  {
-    path: "/contact",
-    element: (
-      <>
-        <Navbar />
-        <Contact />
       </>
     ),
   },
@@ -177,47 +193,12 @@ const router = createBrowserRouter([
 const App = () => {
   useEffect(() => {
     AOS.init({
-      duration: 700, // fast animation
-      delay: 0,
-      easing: "ease-out",
+      duration: 700,
       once: true,
-      offset: 50,
     });
   }, []);
 
-  return (
-    <>
-      <RouterProvider router={router} />
-
-      <ScrollToTop
-        smooth
-        style={{
-          backgroundColor: "#0086df",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: "4px",
-          width: "32px",
-          height: "32px",
-        }}
-        component={
-          <svg
-            className="w-[14px] h-[14px] text-white"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M4.5 15.75l7.5-7.5 7.5 7.5"
-            />
-          </svg>
-        }
-      />
-    </>
-  );
+  return <RouterProvider router={router} />;
 };
 
 export default App;

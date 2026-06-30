@@ -4,6 +4,7 @@ import NetworkSolution from '../Components/NetworkSolution'
 import WebSolution from '../Components/WebSolution'
 import EmailSolution from '../Components/EmailSolution'
 import CloudSecSolution from '../Components/CloudSecSolution'
+import Footer from '../Components/Footer'
 
 const CybersecuritySolution = () => {
   return (
@@ -13,6 +14,7 @@ const CybersecuritySolution = () => {
         <WebSolution/>
         <EmailSolution/>
         <CloudSecSolution/>
+        <Footer/>
     </>
   )
 }

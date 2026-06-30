@@ -78,7 +78,7 @@ const ResponsiveMenu = ({ showMenu, setShowMenu }) => {
             {serviceOpen && (
               <div className="bg-[#fafafa]">
                 <NavLink
-                  to="/services"
+                  to="/infrastructure-service"
                   onClick={handleClose}
                   className="block py-3 pl-12 text-[#3b4358]"
                 >
@@ -86,7 +86,7 @@ const ResponsiveMenu = ({ showMenu, setShowMenu }) => {
                 </NavLink>
 
                 <NavLink
-                  to="/services"
+                  to="/integration-service"
                   onClick={handleClose}
                   className="block py-3 pl-12 text-[#3b4358]"
                 >
@@ -94,7 +94,7 @@ const ResponsiveMenu = ({ showMenu, setShowMenu }) => {
                 </NavLink>
 
                 <NavLink
-                  to="/services"
+                  to="/surveillance-service"
                   onClick={handleClose}
                   className="block py-3 pl-12 text-[#3b4358]"
                 >
@@ -102,7 +102,7 @@ const ResponsiveMenu = ({ showMenu, setShowMenu }) => {
                 </NavLink>
 
                 <NavLink
-                  to="/services"
+                  to="/emerging-service"
                   onClick={handleClose}
                   className="block py-3 pl-12 text-[#3b4358]"
                 >
@@ -110,7 +110,7 @@ const ResponsiveMenu = ({ showMenu, setShowMenu }) => {
                 </NavLink>
 
                 <NavLink
-                  to="/services"
+                  to="/consulting-service"
                   onClick={handleClose}
                   className="block py-3 pl-12 text-[#3b4358]"
                 >
@@ -139,7 +139,7 @@ const ResponsiveMenu = ({ showMenu, setShowMenu }) => {
             {solutionOpen && (
               <div className="bg-[#fafafa]">
                 <NavLink
-                  to="/solutions"
+                  to="/enterprise-solution"
                   onClick={handleClose}
                   className="block py-3 pl-12 text-[#3b4358]"
                 >
@@ -147,7 +147,7 @@ const ResponsiveMenu = ({ showMenu, setShowMenu }) => {
                 </NavLink>
 
                 <NavLink
-                  to="/solutions"
+                  to="/cloud-solution"
                   onClick={handleClose}
                   className="block py-3 pl-12 text-[#3b4358]"
                 >
@@ -155,7 +155,7 @@ const ResponsiveMenu = ({ showMenu, setShowMenu }) => {
                 </NavLink>
 
                 <NavLink
-                  to="/solutions"
+                  to="/cybersecurity-solution"
                   onClick={handleClose}
                   className="block py-3 pl-12 text-[#3b4358]"
                 >
@@ -163,7 +163,7 @@ const ResponsiveMenu = ({ showMenu, setShowMenu }) => {
                 </NavLink>
 
                 <NavLink
-                  to="/solutions"
+                  to="/digital-solution"
                   onClick={handleClose}
                   className="block py-3 pl-12 text-[#3b4358]"
                 >
@@ -171,7 +171,7 @@ const ResponsiveMenu = ({ showMenu, setShowMenu }) => {
                 </NavLink>
 
                 <NavLink
-                  to="/solutions"
+                  to="/disaster-solution"
                   onClick={handleClose}
                   className="block py-3 pl-12 text-[#3b4358]"
                 >
@@ -179,7 +179,7 @@ const ResponsiveMenu = ({ showMenu, setShowMenu }) => {
                 </NavLink>
 
                 <NavLink
-                  to="/solutions"
+                  to="/managed-solution"
                   onClick={handleClose}
                   className="block py-3 pl-12 text-[#3b4358]"
                 >

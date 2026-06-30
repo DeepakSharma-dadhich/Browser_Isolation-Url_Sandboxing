@@ -5,8 +5,8 @@ import Wireless from "../assets/wireless.png";
 import CiscoMeraki from "../assets/ciscomeraki.png";
 import StructuredCabling from "../assets/SCaabling.png";
 import EnterpriseNetworking from "../assets/ENetworking.png";
-import DigitalTransformation from "../assets/digitalTransformation.png";
-import DisasterRecovery from "../assets/disasterRecovery.png";
+import DigitalTransformation from "../assets/digital-transformation.png";
+import DisasterRecovery from "../assets/disaster-recovery.png";
 import {
   FaUsers,
   FaShieldAlt,
@@ -58,7 +58,7 @@ const solutions = [
     image: EnterpriseNetworking,
     title: "Enterprise Networking",
     description:
-      "Networking Solutions are highly mandatory for success of any organization. At EDEN TECHFLOW PVT LTD we offer reliable stability and flexibility.",
+      "Networking Solutions are highly mandatory for success of any organization. We offer reliable stability and flexibility.",
     icon: <FaExchangeAlt />,
   },
   {
@@ -77,10 +77,21 @@ const solutions = [
   },
 ];
 
-const SolutionsOur = () => {
+const SolutionsOur = ({ showHeading = true }) => {
   return (
     <section className="bg-white py-20">
       <div className="container mx-auto px-8 md:px-12 lg:px-20">
+        {showHeading && (
+          <div className="text-center mb-20">
+            <h2 className="text-[28px] md:text-[42px] font-semibold text-black">
+              Our Solutions
+            </h2>
+
+            {/* Thin Blue Line */}
+            <div className="w-[120px] h-[1px] bg-[#4564da] mx-auto mt-4 mb-7"></div>
+          </div>
+        )}
+
         {/* Cards */}
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {solutions.map((item, index) => (
@@ -107,7 +118,7 @@ const SolutionsOur = () => {
                   {item.title}
                 </h3>
 
-                <p className="text-gray-600 leading-7 text-sm">
+                <p className="text-gray-600 leading-7 text-sm text-left">
                   {item.description}
                 </p>
               </div>

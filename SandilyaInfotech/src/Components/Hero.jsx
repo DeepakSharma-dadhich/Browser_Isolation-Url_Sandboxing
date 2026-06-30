@@ -1,9 +1,10 @@
 import React from "react";
 import SliderImport from "react-slick";
-import banner1 from "../assets/Hero1.png";
+import banner1 from "../assets/NewImage.png";
 
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
+import { Link } from 'react-router-dom';
 
 const Slider = SliderImport.default || SliderImport;
 
@@ -21,66 +22,61 @@ const Hero = () => {
   };
 
   return (
-    <section className="overflow-hidden bg-white w-full pb-19">
+    <section className="overflow-hidden bg-white w-full">
       <Slider {...settings}>
         <div>
           <div
-            className="w-full h-[780px] relative"
+            className="w-full h-[760px] relative"
             style={{
               backgroundImage: `url(${banner1})`,
-              backgroundSize: "cover",
+              backgroundSize: "100% 100%",
               backgroundPosition: "center",
               backgroundRepeat: "no-repeat",
             }}
           >
-            {/* Overlay */}
-            <div className="absolute inset-0 bg-white/5"></div>
+            {/* Dark Overlay */}
+            <div className="absolute inset-0 bg-[#031b4e]/55"></div>
 
             {/* Content */}
             <div className="max-w-[1400px] mx-auto h-full px-6 sm:px-12 md:px-20 relative z-10">
               <div className="flex items-center h-full">
-                <div className="max-w-xl text-left">
-
-                  <p className="uppercase tracking-[3px] text-slate-800 text-[11px] md:text-xs font-bold mb-4 font-sans">
+                <div className="max-w-[620px] text-left">
+                  <p className="uppercase tracking-[4px] text-cyan-300 text-sm font-semibold mb-5 font-sans">
                     MANAGE YOUR BUSINESS SERVICE WITH
                   </p>
 
                   <h1
                     className="
-                      text-slate-800
-                      text-3xl
-                      sm:text-4xl
-                      md:text-5xl
+                      text-white
+                      text-4xl
+                      sm:text-5xl
+                      md:text-6xl
                       font-black
-                      leading-none
-                      mb-5
-                      tracking-wide
+                      leading-tight
+                      mb-6
                       font-sans
                     "
                   >
                     SANDILYA INFOTECH
                   </h1>
 
-                  <p className="text-[#1e293b] text-[11px] md:text-xs font-semibold tracking-wider mb-8 uppercase font-sans">
+                  <p className="text-gray-200 text-lg leading-8 mb-10 font-sans">
                     Find the right solution for your business.
                   </p>
-
+                  <Link to="/about">
                   <button
                     className="
-                      bg-[#0097a7]
-                      border border-slate-700
+                      bg-[#00bcd4]
                       rounded-full
                       px-8
-                      py-2.5
-                      text-[11px]
+                      py-3
+                      text-sm
                       font-bold
                       tracking-[2px]
-                      text-slate-700
+                      text-white
                       uppercase
                       font-sans
-                      hover:bg-slate-800
-                      hover:text-white
-                      hover:border-slate-800
+                      hover:bg-[#0097a7]
                       active:scale-95
                       transition-all
                       duration-300
@@ -88,7 +84,7 @@ const Hero = () => {
                   >
                     More Info
                   </button>
-
+                  </Link>
                 </div>
               </div>
             </div>
