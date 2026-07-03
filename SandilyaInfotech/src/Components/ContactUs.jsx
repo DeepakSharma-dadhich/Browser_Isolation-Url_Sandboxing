@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import contactImg from "../assets/contact.png";
+import emailjs from "@emailjs/browser";
 
 const ContactUs = () => {
   const [formData, setFormData] = useState({
@@ -77,12 +78,10 @@ const ContactUs = () => {
     }
 
     if (
-      formData.email.trim() === "" ||
-      !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(
-        formData.email.trim()
-      )
+      formData.phone.trim() === "" ||
+      !/^[6-9]\d{9}$/.test(formData.phone.trim())
     ) {
-      newErrors.email = "Please enter a valid email address";
+      newErrors.phone = "Please enter a valid 10-digit Indian mobile number";
     }
 
     if (
@@ -101,14 +100,62 @@ const ContactUs = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  // const handleSubmit = (e) => {
+  //   e.preventDefault();
+
+  //   if (!validate()) return;
+
+  //   setStatus("sending");
+
+  //   setTimeout(() => {
+  //     setStatus("success");
+
+  //     setFormData({
+  //       fullName: "",
+  //       email: "",
+  //       phone: "",
+  //       project: "",
+  //       subject: "",
+  //       message: "",
+  //     });
+
+  //     setTimeout(() => {
+  //       setStatus("");
+  //     }, 3000);
+  //   }, 1500);
+  // };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!validate()) return;
 
     setStatus("sending");
 
-    setTimeout(() => {
+    try {
+      const templateParams = {
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        project: formData.project,
+        subject: formData.subject,
+        message: formData.message,
+        time: new Date().toLocaleString(),
+      };
+      console.log("Service ID:", import.meta.env.VITE_EMAILJS_SERVICE_ID);
+      console.log(
+        "Template ID:",
+        import.meta.env.VITE_EMAILJS_CONTACT_TEMPLATE_ID,
+      );
+      console.log("Public Key:", import.meta.env.VITE_EMAILJS_PUBLIC_KEY);
+
+      await emailjs.send(
+        import.meta.env.VITE_EMAILJS_SERVICE_ID,
+        import.meta.env.VITE_EMAILJS_CONTACT_TEMPLATE_ID,
+        templateParams,
+        import.meta.env.VITE_EMAILJS_PUBLIC_KEY,
+      );
+
       setStatus("success");
 
       setFormData({
@@ -123,14 +170,18 @@ const ContactUs = () => {
       setTimeout(() => {
         setStatus("");
       }, 3000);
-    }, 1500);
+    } catch (error) {
+      console.log(error);
+      console.log("STATUS:", error.status);
+      console.log("TEXT:", error.text);
+      setStatus("error");
+    }
   };
 
   return (
     <section className="bg-white py-16">
       <div className="container mx-auto px-8 md:px-12 lg:px-20">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
-
           {/* Left Side Image */}
           <div data-aos="fade-right" data-aos-duration="700">
             <img
@@ -147,10 +198,8 @@ const ContactUs = () => {
             </h2>
 
             <form className="space-y-5" onSubmit={handleSubmit}>
-
               {/* Row 1 */}
               <div className="grid md:grid-cols-2 gap-5">
-
                 <div>
                   <label className="block text-sm text-gray-600 mb-2">
                     Full Name <span className="text-red-500">*</span>
@@ -187,16 +236,13 @@ const ContactUs = () => {
                   />
 
                   {errors.email && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.email}
-                    </p>
+                    <p className="text-red-500 text-sm mt-1">{errors.email}</p>
                   )}
                 </div>
               </div>
 
               {/* Row 2 */}
               <div className="grid md:grid-cols-2 gap-5">
-
                 <div>
                   <label className="block text-sm text-gray-600 mb-2">
                     Phone Number <span className="text-red-500">*</span>
@@ -212,9 +258,7 @@ const ContactUs = () => {
                   />
 
                   {errors.phone && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {errors.phone}
-                    </p>
+                    <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
                   )}
                 </div>
 
@@ -266,9 +310,7 @@ const ContactUs = () => {
                 ></textarea>
 
                 {errors.message && (
-                  <p className="text-red-500 text-sm mt-1">
-                    {errors.message}
-                  </p>
+                  <p className="text-red-500 text-sm mt-1">{errors.message}</p>
                 )}
               </div>
 
@@ -292,9 +334,13 @@ const ContactUs = () => {
                   Message sent successfully!
                 </div>
               )}
+              {status === "error" && (
+                <div className="bg-red-100 text-red-700 border border-red-300 rounded-lg px-4 py-3">
+                  Failed to send message. Please try again.
+                </div>
+              )}
             </form>
           </div>
-
         </div>
       </div>
     </section>

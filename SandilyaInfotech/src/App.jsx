@@ -21,8 +21,10 @@ import IntegrationService from "./Pages/IntegrationService";
 import SurveillanceService from "./Pages/SurveillanceService";
 import EmergingService from "./Pages/EmergingService";
 import ConsultingService from "./Pages/ConsultingService";
+import SolutionDesignService from "./Pages/SolutionDesignService";
+import ManagedService from "./Pages/ManagedService";
 
-// AOS
+AOS
 import AOS from "aos";
 import "aos/dist/aos.css";
 
@@ -104,6 +106,26 @@ const router = createBrowserRouter([
         <ScrollToTopRoute />
         <Navbar />
         <ConsultingService />
+      </>
+    ),
+  },
+  {
+    path: "/solutiondesign-service",
+    element: (
+      <>
+        <ScrollToTopRoute />
+        <Navbar />
+        <SolutionDesignService/>
+      </>
+    ),
+  },
+  {
+    path: "/managed-service",
+    element: (
+      <>
+        <ScrollToTopRoute />
+        <Navbar />
+        <ManagedService/>
       </>
     ),
   },
@@ -193,9 +215,11 @@ const router = createBrowserRouter([
 const App = () => {
   useEffect(() => {
     AOS.init({
-      duration: 700,
-      once: true,
-    });
+    duration: 700,
+    once: true,
+    offset: 50,
+    disable: "mobile",
+  });
   }, []);
 
   return <RouterProvider router={router} />;

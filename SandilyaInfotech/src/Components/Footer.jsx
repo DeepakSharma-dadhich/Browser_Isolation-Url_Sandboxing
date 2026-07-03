@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import emailjs from "@emailjs/browser";
+
 
 const Footer = () => {
   const [formData, setFormData] = useState({
@@ -7,18 +9,19 @@ const Footer = () => {
     email: "",
     message: "",
   });
+  const [status, setStatus] = useState("");
 
   const handleChange = (e) => {
-  const { name, value } = e.target;
+    const { name, value } = e.target;
 
-  // Prevent leading spaces
-  setFormData({
-    ...formData,
-    [name]: value.replace(/^\s+/, ""),
-  });
-};
+    // Prevent leading spaces
+    setFormData({
+      ...formData,
+      [name]: value.replace(/^\s+/, ""),
+    });
+  };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
   e.preventDefault();
 
   const { name, email, message } = formData;
@@ -37,15 +40,46 @@ const Footer = () => {
     alert("Message must be at least 10 characters.");
     return;
   }
+  
+  setStatus("sending");
+  
 
-  console.log("Form Submitted:", formData);
-  // alert("Message submitted successfully!");
+  try {
+    const templateParams = {
+      fullName: name,
+      email: email,
+      phone: "Not Provided",
+      project: "Footer Form",
+      subject: "Footer Contact",
+      message: message,
+      time: new Date().toLocaleString(),
+      
+    };
+    setStatus("success");
 
-  setFormData({
-    name: "",
-    email: "",
-    message: "",
-  });
+    await emailjs.send(
+      import.meta.env.VITE_EMAILJS_SERVICE_ID,
+      import.meta.env.VITE_EMAILJS_FOOTER_TEMPLATE_ID,
+      templateParams,
+      import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+    );
+
+    setStatus("success");
+
+    setFormData({
+      name: "",
+      email: "",
+      message: "",
+    });
+
+    setTimeout(() => {
+      setStatus("");
+    }, 3000);
+
+  } catch (error) {
+    console.error(error);
+    setStatus("error");
+  }
 };
 
   return (
@@ -194,44 +228,44 @@ const Footer = () => {
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             {/* Name Input */}
             <input
-  type="text"
-  name="name"
-  placeholder="Your name*"
-  required
-  minLength={3}
-  maxLength={50}
-  pattern="^[A-Za-z ]+$"
-  title="Name should contain only letters and spaces."
-  value={formData.name}
-  onChange={handleChange}
-  className="w-full bg-white text-slate-800 text-[13.5px] placeholder-[#757575] px-3.5 py-2.5 rounded-[2px] outline-none font-sans"
-/>
+              type="text"
+              name="name"
+              placeholder="Your name*"
+              required
+              minLength={3}
+              maxLength={50}
+              pattern="^[A-Za-z ]+$"
+              title="Name should contain only letters and spaces."
+              value={formData.name}
+              onChange={handleChange}
+              className="w-full bg-white text-slate-800 text-[13.5px] placeholder-[#757575] px-3.5 py-2.5 rounded-[2px] outline-none font-sans"
+            />
             {/* Email Input */}
             <input
-  type="email"
-  name="email"
-  placeholder="Your email*"
-  required
-  maxLength={100}
-  pattern="^[^\s@]+@[^\s@]+\.[^\s@]{2,}$"
-  title="Please enter a valid email address."
-  value={formData.email}
-  onChange={handleChange}
-  className="w-full bg-white text-slate-800 text-[13.5px] placeholder-[#757575] px-3.5 py-2.5 rounded-[2px] outline-none font-sans"
-/>
+              type="email"
+              name="email"
+              placeholder="Your email*"
+              required
+              maxLength={100}
+              pattern="^[^\s@]+@[^\s@]+\.[^\s@]{2,}$"
+              title="Please enter a valid email address."
+              value={formData.email}
+              onChange={handleChange}
+              className="w-full bg-white text-slate-800 text-[13.5px] placeholder-[#757575] px-3.5 py-2.5 rounded-[2px] outline-none font-sans"
+            />
             {/* Message Textarea */}
             <textarea
-  name="message"
-  placeholder="Your message*"
-  rows="4"
-  required
-  minLength={10}
-  maxLength={500}
-  title="Message should be between 10 and 500 characters."
-  value={formData.message}
-  onChange={handleChange}
-  className="w-full bg-white text-slate-800 text-[13.5px] placeholder-[#757575] px-3.5 py-2.5 rounded-[2px] outline-none font-sans resize-none h-[115px]"
-/>
+              name="message"
+              placeholder="Your message*"
+              rows="4"
+              required
+              minLength={10}
+              maxLength={500}
+              title="Message should be between 10 and 500 characters."
+              value={formData.message}
+              onChange={handleChange}
+              className="w-full bg-white text-slate-800 text-[13.5px] placeholder-[#757575] px-3.5 py-2.5 rounded-[2px] outline-none font-sans resize-none h-[115px]"
+            />
             {/* Submit Button */}
             <button
               type="submit"
@@ -239,6 +273,24 @@ const Footer = () => {
             >
               Submit
             </button>
+
+            {status === "sending" && (
+              <div className="bg-blue-100 text-blue-700 border border-blue-300 rounded px-3 py-2 text-sm">
+                Sending message...
+              </div>
+            )}
+
+            {status === "success" && (
+              <div className="bg-green-100 text-green-700 border border-green-300 rounded px-3 py-2 text-sm">
+                Message sent successfully!
+              </div>
+            )}
+
+            {status === "error" && (
+              <div className="bg-red-100 text-red-700 border border-red-300 rounded px-3 py-2 text-sm">
+                Failed to send message.
+              </div>
+            )}
           </form>
         </div>
       </div>

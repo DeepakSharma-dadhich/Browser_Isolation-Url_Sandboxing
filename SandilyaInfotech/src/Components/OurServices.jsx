@@ -52,13 +52,13 @@ const services = [
     icon: <FaCogs />,
     title: "Solution Design & Deployment",
     desc: "Custom IT solutions tailored for your business goals.",
-    link: "/services",
+    link: "/solutiondesign-service",
   },
   {
     icon: <FaTools />,
     title: "Managed Services",
     desc: "End-to-end monitoring, maintenance, and IT support.",
-    link: "/services",
+    link: "/managed-service",
   },
 ];
 

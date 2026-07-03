@@ -67,7 +67,7 @@ const Navbar = () => {
           isVisible ? "translate-y-0" : "-translate-y-full"
         } ${
           isScrolled
-            ? "bg-white/95 backdrop-blur-md shadow-lg border-b border-[#ececec]]"
+            ? "bg-white/95 backdrop-blur-md shadow-lg border-b border-[#ececec]"
             : "bg-white"
         }`}
       >
