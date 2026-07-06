@@ -1,86 +1,8 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import emailjs from "@emailjs/browser";
+import React from "react";
+import { Link, useLocation } from "react-router-dom";
 
 
 const Footer = () => {
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    message: "",
-  });
-  const [status, setStatus] = useState("");
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-
-    // Prevent leading spaces
-    setFormData({
-      ...formData,
-      [name]: value.replace(/^\s+/, ""),
-    });
-  };
-
-  const handleSubmit = async (e) => {
-  e.preventDefault();
-
-  const { name, email, message } = formData;
-
-  if (!/^[A-Za-z ]+$/.test(name)) {
-    alert("Name should contain only letters and spaces.");
-    return;
-  }
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
-    alert("Please enter a valid email address.");
-    return;
-  }
-
-  if (message.trim().length < 10) {
-    alert("Message must be at least 10 characters.");
-    return;
-  }
-  
-  setStatus("sending");
-  
-
-  try {
-    const templateParams = {
-      fullName: name,
-      email: email,
-      phone: "Not Provided",
-      project: "Footer Form",
-      subject: "Footer Contact",
-      message: message,
-      time: new Date().toLocaleString(),
-      
-    };
-    setStatus("success");
-
-    await emailjs.send(
-      import.meta.env.VITE_EMAILJS_SERVICE_ID,
-      import.meta.env.VITE_EMAILJS_FOOTER_TEMPLATE_ID,
-      templateParams,
-      import.meta.env.VITE_EMAILJS_PUBLIC_KEY
-    );
-
-    setStatus("success");
-
-    setFormData({
-      name: "",
-      email: "",
-      message: "",
-    });
-
-    setTimeout(() => {
-      setStatus("");
-    }, 3000);
-
-  } catch (error) {
-    console.error(error);
-    setStatus("error");
-  }
-};
 
   return (
     <footer className="bg-[#3a3a3a] text-[#b4b4b4] font-sans pt-20 relative">
@@ -225,74 +147,51 @@ const Footer = () => {
           </ul>
         </div>
         <div>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-            {/* Name Input */}
-            <input
-              type="text"
-              name="name"
-              placeholder="Your name*"
-              required
-              minLength={3}
-              maxLength={50}
-              pattern="^[A-Za-z ]+$"
-              title="Name should contain only letters and spaces."
-              value={formData.name}
-              onChange={handleChange}
-              className="w-full bg-white text-slate-800 text-[13.5px] placeholder-[#757575] px-3.5 py-2.5 rounded-[2px] outline-none font-sans"
-            />
-            {/* Email Input */}
-            <input
-              type="email"
-              name="email"
-              placeholder="Your email*"
-              required
-              maxLength={100}
-              pattern="^[^\s@]+@[^\s@]+\.[^\s@]{2,}$"
-              title="Please enter a valid email address."
-              value={formData.email}
-              onChange={handleChange}
-              className="w-full bg-white text-slate-800 text-[13.5px] placeholder-[#757575] px-3.5 py-2.5 rounded-[2px] outline-none font-sans"
-            />
-            {/* Message Textarea */}
-            <textarea
-              name="message"
-              placeholder="Your message*"
-              rows="4"
-              required
-              minLength={10}
-              maxLength={500}
-              title="Message should be between 10 and 500 characters."
-              value={formData.message}
-              onChange={handleChange}
-              className="w-full bg-white text-slate-800 text-[13.5px] placeholder-[#757575] px-3.5 py-2.5 rounded-[2px] outline-none font-sans resize-none h-[115px]"
-            />
-            {/* Submit Button */}
-            <button
-              type="submit"
-              className="self-start bg-[#2e6cee] hover:bg-[#1b5bdc] text-white font-medium text-[13.5px] px-[36px] py-[9px] rounded-full shadow-sm transition duration-200 cursor-pointer font-sans"
-            >
-              Submit
-            </button>
+  <h3 className="text-white text-[15px] font-semibold tracking-wide mb-5 font-sans">
+    Get In Touch
+  </h3>
 
-            {status === "sending" && (
-              <div className="bg-blue-100 text-blue-700 border border-blue-300 rounded px-3 py-2 text-sm">
-                Sending message...
-              </div>
-            )}
+  <p className="space-y-[22px] text-[13.5px] text-white font-sans">
+    Looking for secure ICT solutions or IT consulting? Our team is ready to
+    help you transform your business with innovative technology solutions.
+  </p>
 
-            {status === "success" && (
-              <div className="bg-green-100 text-green-700 border border-green-300 rounded px-3 py-2 text-sm">
-                Message sent successfully!
-              </div>
-            )}
+  <div>
 
-            {status === "error" && (
-              <div className="bg-red-100 text-red-700 border border-red-300 rounded px-3 py-2 text-sm">
-                Failed to send message.
-              </div>
-            )}
-          </form>
-        </div>
+    {/* <a
+      href="mailto:awanish@sandilyainfotech.com"
+      className="flex items-center gap-3 bg-[#4a4a4a] hover:bg-[#2e6cee] transition-all duration-300 rounded-lg px-4 py-3 text-white"
+    >
+      <span className="text-lg">📧</span>
+      <span>Email Us</span>
+    </a> */}
+
+    {/* <a
+      href="tel:+919310281314"
+      className="flex items-center gap-3 bg-[#4a4a4a] hover:bg-[#16a34a] transition-all duration-300 rounded-lg px-4 py-3 text-white"
+    >
+      <span className="text-lg">📞</span>
+      <span>Call Us</span>
+    </a> */}
+
+    <Link
+  to="/contact"
+  onClick={(e) => {
+    if (location.pathname === "/contact") {
+      e.preventDefault(); // same route navigation ko prevent karo
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    }
+  }}
+  className="flex items-center justify-center bg-[#2e6cee] hover:bg-[#1b5bdc] text-white font-semibold rounded-full py-3 mt-5 transition"
+>
+  Contact Us
+</Link>
+
+  </div>
+</div>
       </div>
 
       {/* Absolute Bottom Copyright Panel Tray */}

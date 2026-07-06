@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import contactImg from "../assets/contact.png";
-import emailjs from "@emailjs/browser";
 
 const ContactUs = () => {
   const [formData, setFormData] = useState({
@@ -125,37 +124,78 @@ const ContactUs = () => {
   //   }, 1500);
   // };
 
+  // const handleSubmit = async (e) => {
+  //   e.preventDefault();
+
+  //   if (!validate()) return;
+
+  //   setStatus("sending");
+
+  //   try {
+  //     const templateParams = {
+  //       fullName: formData.fullName,
+  //       email: formData.email,
+  //       phone: formData.phone,
+  //       project: formData.project,
+  //       subject: formData.subject,
+  //       message: formData.message,
+  //       time: new Date().toLocaleString(),
+  //     };
+  //     console.log("Service ID:", import.meta.env.VITE_EMAILJS_SERVICE_ID);
+  //     console.log(
+  //       "Template ID:",
+  //       import.meta.env.VITE_EMAILJS_CONTACT_TEMPLATE_ID,
+  //     );
+  //     console.log("Public Key:", import.meta.env.VITE_EMAILJS_PUBLIC_KEY);
+
+  //     await emailjs.send(
+  //       import.meta.env.VITE_EMAILJS_SERVICE_ID,
+  //       import.meta.env.VITE_EMAILJS_CONTACT_TEMPLATE_ID,
+  //       templateParams,
+  //       import.meta.env.VITE_EMAILJS_PUBLIC_KEY,
+  //     );
+
+  //     setStatus("success");
+
+  //     setFormData({
+  //       fullName: "",
+  //       email: "",
+  //       phone: "",
+  //       project: "",
+  //       subject: "",
+  //       message: "",
+  //     });
+
+  //     setTimeout(() => {
+  //       setStatus("");
+  //     }, 3000);
+  //   } catch (error) {
+  //     console.log(error);
+  //     console.log("STATUS:", error.status);
+  //     console.log("TEXT:", error.text);
+  //     setStatus("error");
+  //   }
+  // };
+
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!validate()) return;
+  if (!validate()) return;
 
-    setStatus("sending");
+  setStatus("sending");
 
-    try {
-      const templateParams = {
-        fullName: formData.fullName,
-        email: formData.email,
-        phone: formData.phone,
-        project: formData.project,
-        subject: formData.subject,
-        message: formData.message,
-        time: new Date().toLocaleString(),
-      };
-      console.log("Service ID:", import.meta.env.VITE_EMAILJS_SERVICE_ID);
-      console.log(
-        "Template ID:",
-        import.meta.env.VITE_EMAILJS_CONTACT_TEMPLATE_ID,
-      );
-      console.log("Public Key:", import.meta.env.VITE_EMAILJS_PUBLIC_KEY);
+  try {
+    const response = await fetch("http://localhost:8000/contact.php", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(formData),
+    });
 
-      await emailjs.send(
-        import.meta.env.VITE_EMAILJS_SERVICE_ID,
-        import.meta.env.VITE_EMAILJS_CONTACT_TEMPLATE_ID,
-        templateParams,
-        import.meta.env.VITE_EMAILJS_PUBLIC_KEY,
-      );
+    const result = await response.json();
 
+    if (result.success) {
       setStatus("success");
 
       setFormData({
@@ -170,13 +210,15 @@ const ContactUs = () => {
       setTimeout(() => {
         setStatus("");
       }, 3000);
-    } catch (error) {
-      console.log(error);
-      console.log("STATUS:", error.status);
-      console.log("TEXT:", error.text);
+    } else {
+      console.log(result.message);
       setStatus("error");
     }
-  };
+  } catch (err) {
+    console.log(err);
+    setStatus("error");
+  }
+};
 
   return (
     <section className="bg-white py-16">
