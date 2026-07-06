@@ -56,7 +56,7 @@ try {
     $mail->SMTPAuth = true;
 
     // Replace with your Gmail
-    $mail->Username = "basu22nishu@gmail.com";
+    $mail->Username = "example@gmail.com";
 
     // Replace with your Gmail App Password
     $mail->Password = "ukis eeez olpo hyem";
@@ -66,12 +66,12 @@ try {
     $mail->Port = 587;
 
     $mail->setFrom(
-        "basu22nishu@gmail.com",
-        "Basu"
+        "example@gmail.com",
+        "Sandilya"
     );
 
     // Replace with the email that should receive the form
-    $mail->addAddress("basu22nishu@gmail.com");
+    $mail->addAddress("example@gmail.com");
 
     $mail->isHTML(true);
 

@@ -6,14 +6,14 @@ return [
 
     'encryption' => 'tls',
 
-    'username' => 'basu22nishu@gmail.com',
+    'username' => 'example@gmail.com',
 
-    'password' => 'ukis eeez olpo hyem',
+    'password' => '**** **** **** ****',
 
-    'from_email' => 'basu22nishu@gmail.com',
+    'from_email' => 'example@gmail.com',
 
-    'from_name' => 'Basu',
+    'from_name' => 'Sandilya',
 
-    'admin_email' => 'basu22nishu@gmail.com'
+    'admin_email' => 'example@gmail.com'
 
 ];
