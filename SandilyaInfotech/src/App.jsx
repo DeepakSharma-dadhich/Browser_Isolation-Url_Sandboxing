@@ -24,7 +24,7 @@ import ConsultingService from "./Pages/ConsultingService";
 import SolutionDesignService from "./Pages/SolutionDesignService";
 import ManagedService from "./Pages/ManagedService";
 
-AOS
+// AOS
 import AOS from "aos";
 import "aos/dist/aos.css";
 
@@ -218,7 +218,7 @@ const App = () => {
     duration: 700,
     once: true,
     offset: 50,
-    disable: "mobile",
+    // disable: "mobile",
   });
   }, []);
 

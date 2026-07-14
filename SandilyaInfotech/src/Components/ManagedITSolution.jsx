@@ -14,7 +14,7 @@ const ManagedITSolution = () => {
             </h2>
 
             <p className="text-gray-600 text-[16px] text-justify mb-6">
-              As a Managed Service Provider (MSP), EDEN TECHFLOW PVT LTD
+              As a Managed Service Provider (MSP), Sandilya Infotech Pvt Ltd
               proactively manages and monitors your entire IT infrastructure,
               from structured cabling to advanced technology solutions. By
               outsourcing IT operations to our team, businesses gain faster

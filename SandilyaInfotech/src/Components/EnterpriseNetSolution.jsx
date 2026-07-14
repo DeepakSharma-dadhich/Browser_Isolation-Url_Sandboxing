@@ -15,20 +15,20 @@ const EnterpriseNetSolution = () => {
 
             <p className="text-gray-600 text-[16px] text-justify mb-6">
               Networking Solutions are highly mandatory for success of any
-              organization. At EDEN TECHFLOW PVT LTD we offer reliable stability
-              and flexibility in our networking solutions; which is coupled with
-              delivering robust performance. We deliver simplistic solutions
-              that are flexible and can be moulded in accordance to client
-              requirements. EDEN TECHFLOW PVT LTD delivers single, scalable and
-              secure IP network which can be customized based on the changing
-              business needs. EDEN TECHFLOW PVT LTD understands your business
-              needs and provides you with best tailored solutions to meet the
-              unique needs of your business. The networking solutions provided
-              by us are highly scalable and will match the growing needs of your
-              business. EDEN TECHFLOW PVT LTD have been helping their customers
-              to realize the business benefits of networking through increasing
-              productivity and business flexibility and reducing operational
-              costs.
+              organization. At Sandilya Infotech Pvt Ltd we offer reliable
+              stability and flexibility in our networking solutions; which is
+              coupled with delivering robust performance. We deliver simplistic
+              solutions that are flexible and can be moulded in accordance to
+              client requirements. Sandilya Infotech Pvt Ltd delivers single,
+              scalable and secure IP network which can be customized based on
+              the changing business needs. Sandilya Infotech Pvt Ltd understands
+              your business needs and provides you with best tailored solutions
+              to meet the unique needs of your business. The networking
+              solutions provided by us are highly scalable and will match the
+              growing needs of your business. Sandilya Infotech Pvt Ltd have
+              been helping their customers to realize the business benefits of
+              networking through increasing productivity and business
+              flexibility and reducing operational costs.
             </p>
 
             {/* Features */}

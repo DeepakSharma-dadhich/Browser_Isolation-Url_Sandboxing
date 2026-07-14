@@ -7,6 +7,8 @@ import StructuredCabling from "../assets/SCaabling.png";
 import EnterpriseNetworking from "../assets/ENetworking.png";
 import DigitalTransformation from "../assets/digital-transformation.png";
 import DisasterRecovery from "../assets/disaster-recovery.png";
+import { Link } from "react-router-dom";
+
 import {
   FaUsers,
   FaShieldAlt,
@@ -25,6 +27,7 @@ const solutions = [
     description:
       "Collaboration describes the combination of communications and collaboration technologies. The modular elements of the Collaboration Architecture work together to deliver compelling collaboration experiences both within and among organizations.",
     icon: <FaUsers />,
+    link: "/enterprise-solution",
   },
   {
     image: Security2,
@@ -32,6 +35,7 @@ const solutions = [
     description:
       "In companies where the network is essential, special attention must be given to security to prevent virus attacks, unauthorized access, and data theft. Robust security measures not only protect sensitive information but also ensure business continuity and build trust with clients.",
     icon: <FaShieldAlt />,
+    link: "/cybersecurity-solution",
   },
   {
     image: Wireless,
@@ -39,6 +43,7 @@ const solutions = [
     description:
       "All corporates have a fundamental need for wireless solutions, and provides cutting-edge wireless technology to ensure seamless connectivity and enhanced productivity.",
     icon: <FaWifi />,
+    link: "/enterprise-solution",
   },
   {
     image: CiscoMeraki,
@@ -46,6 +51,7 @@ const solutions = [
     description:
       "Cisco Meraki operates the industry’s largest Cloud Networking services. It is the leader in managed wireless, switching & security solutions.",
     icon: <FaCloud />,
+    link: "/cloud-solution",
   },
   {
     image: StructuredCabling,
@@ -53,6 +59,7 @@ const solutions = [
     description:
       "Structured cabling solutions of Proactive point towards the system of wiring used by organizations to facilitate easy transmission of data and information.",
     icon: <FaNetworkWired />,
+    link: "/managed-solution",
   },
   {
     image: EnterpriseNetworking,
@@ -60,6 +67,7 @@ const solutions = [
     description:
       "Networking Solutions are highly mandatory for success of any organization. We offer reliable stability and flexibility.",
     icon: <FaExchangeAlt />,
+    link: "/enterprise-solution",
   },
   {
     image: DigitalTransformation,
@@ -67,6 +75,7 @@ const solutions = [
     description:
       "We offer reliable and flexible digital solutions for businesses aiming to modernize and stay ahead in the competitive digital era.",
     icon: <FaSyncAlt />,
+    link: "/digital-solution",
   },
   {
     image: DisasterRecovery,
@@ -74,6 +83,7 @@ const solutions = [
     description:
       "We provide reliable disaster recovery solutions to ensure your critical data is protected and restored in case of unexpected failures.",
     icon: <FaDatabase />,
+    link: "/disaster-solution",
   },
 ];
 
@@ -121,6 +131,11 @@ const SolutionsOur = ({ showHeading = true }) => {
                 <p className="text-gray-600 leading-7 text-sm text-left">
                   {item.description}
                 </p>
+                <Link to={item.link} className="mt-2 flex justify-center">
+                  <button className="border border-[#0057c2] text-[#0057c2] px-5 py-2 rounded-full text-sm font-medium hover:bg-[#0057c2] hover:text-white transition-all duration-300">
+                    Learn More
+                  </button>
+                </Link>
               </div>
             </div>
           ))}

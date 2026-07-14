@@ -66,159 +66,117 @@ const ContactUs = () => {
     setErrors(newErrors);
   };
 
-  const validate = () => {
-    let newErrors = {};
+  // const validate = () => {
+  //   let newErrors = {};
 
-    if (
-      formData.fullName.trim() === "" ||
-      !/^[A-Za-z ]+$/.test(formData.fullName.trim())
-    ) {
-      newErrors.fullName = "Please enter a valid name";
-    }
-
-    if (
-      formData.phone.trim() === "" ||
-      !/^[6-9]\d{9}$/.test(formData.phone.trim())
-    ) {
-      newErrors.phone = "Please enter a valid 10-digit Indian mobile number";
-    }
-
-    if (
-      formData.phone.trim() === "" ||
-      !/^[0-9]{10}$/.test(formData.phone.trim())
-    ) {
-      newErrors.phone = "Please enter a valid 10-digit mobile number";
-    }
-
-    if (formData.message.trim().length < 5) {
-      newErrors.message = "Please enter your message";
-    }
-
-    setErrors(newErrors);
-
-    return Object.keys(newErrors).length === 0;
-  };
-
-  // const handleSubmit = (e) => {
-  //   e.preventDefault();
-
-  //   if (!validate()) return;
-
-  //   setStatus("sending");
-
-  //   setTimeout(() => {
-  //     setStatus("success");
-
-  //     setFormData({
-  //       fullName: "",
-  //       email: "",
-  //       phone: "",
-  //       project: "",
-  //       subject: "",
-  //       message: "",
-  //     });
-
-  //     setTimeout(() => {
-  //       setStatus("");
-  //     }, 3000);
-  //   }, 1500);
-  // };
-
-  // const handleSubmit = async (e) => {
-  //   e.preventDefault();
-
-  //   if (!validate()) return;
-
-  //   setStatus("sending");
-
-  //   try {
-  //     const templateParams = {
-  //       fullName: formData.fullName,
-  //       email: formData.email,
-  //       phone: formData.phone,
-  //       project: formData.project,
-  //       subject: formData.subject,
-  //       message: formData.message,
-  //       time: new Date().toLocaleString(),
-  //     };
-  //     console.log("Service ID:", import.meta.env.VITE_EMAILJS_SERVICE_ID);
-  //     console.log(
-  //       "Template ID:",
-  //       import.meta.env.VITE_EMAILJS_CONTACT_TEMPLATE_ID,
-  //     );
-  //     console.log("Public Key:", import.meta.env.VITE_EMAILJS_PUBLIC_KEY);
-
-  //     await emailjs.send(
-  //       import.meta.env.VITE_EMAILJS_SERVICE_ID,
-  //       import.meta.env.VITE_EMAILJS_CONTACT_TEMPLATE_ID,
-  //       templateParams,
-  //       import.meta.env.VITE_EMAILJS_PUBLIC_KEY,
-  //     );
-
-  //     setStatus("success");
-
-  //     setFormData({
-  //       fullName: "",
-  //       email: "",
-  //       phone: "",
-  //       project: "",
-  //       subject: "",
-  //       message: "",
-  //     });
-
-  //     setTimeout(() => {
-  //       setStatus("");
-  //     }, 3000);
-  //   } catch (error) {
-  //     console.log(error);
-  //     console.log("STATUS:", error.status);
-  //     console.log("TEXT:", error.text);
-  //     setStatus("error");
+  //   if (
+  //     formData.fullName.trim() === "" ||
+  //     !/^[A-Za-z ]+$/.test(formData.fullName.trim())
+  //   ) {
+  //     newErrors.fullName = "Please enter a valid name";
   //   }
+
+  //   if (
+  //     formData.phone.trim() === "" ||
+  //     !/^[6-9]\d{9}$/.test(formData.phone.trim())
+  //   ) {
+  //     newErrors.phone = "Please enter a valid 10-digit Indian mobile number";
+  //   }
+
+    
+  //   if (formData.message.trim().length < 5) {
+  //     newErrors.message = "Please enter your message";
+  //   }
+
+  //   setErrors(newErrors);
+
+  //   return Object.keys(newErrors).length === 0;
   // };
+
+  const validate = () => {
+  let newErrors = {};
+
+  if (
+    formData.fullName.trim() === "" ||
+    !/^[A-Za-z ]+$/.test(formData.fullName.trim())
+  ) {
+    newErrors.fullName = "Please enter a valid name";
+  }
+
+  if (
+    formData.email.trim() === "" ||
+    !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(formData.email.trim())
+  ) {
+    newErrors.email = "Please enter a valid email address";
+  }
+
+  if (
+    formData.phone.trim() === "" ||
+    !/^[6-9]\d{9}$/.test(formData.phone.trim())
+  ) {
+    newErrors.phone = "Please enter a valid 10-digit Indian mobile number";
+  }
+
+  if (formData.message.trim().length < 5) {
+    newErrors.message = "Please enter your message";
+  }
+
+  setErrors(newErrors);
+
+  return Object.keys(newErrors).length === 0;
+};
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!validate()) return;
+    if (!validate()) return;
 
-  setStatus("sending");
+    setStatus("sending");
 
-  try {
-    const response = await fetch("http://localhost:8000/contact.php", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(formData),
-    });
+    try {
+      const form = new FormData();
 
-    const result = await response.json();
+      form.append("form_type", "contact");
+      form.append("token", "123456");
 
-    if (result.success) {
-      setStatus("success");
+      form.append("fullName", formData.fullName);
+      form.append("email", formData.email);
+      form.append("phone", formData.phone);
+      form.append("project", formData.project);
+      form.append("subject", formData.subject);
+      form.append("message", formData.message);
 
-      setFormData({
-        fullName: "",
-        email: "",
-        phone: "",
-        project: "",
-        subject: "",
-        message: "",
+      const response = await fetch("http://localhost:8000/api/sendmail.php", {
+        method: "POST",
+        body: form,
       });
 
-      setTimeout(() => {
-        setStatus("");
-      }, 3000);
-    } else {
-      console.log(result.message);
+      const result = await response.json();
+
+      if (result.success) {
+        setStatus("success");
+
+        setFormData({
+          fullName: "",
+          email: "",
+          phone: "",
+          project: "",
+          subject: "",
+          message: "",
+        });
+
+        setTimeout(() => {
+          setStatus("");
+        }, 3000);
+      } else {
+        console.log(result);
+        setStatus("error");
+      }
+    } catch (error) {
+      console.log(error);
       setStatus("error");
     }
-  } catch (err) {
-    console.log(err);
-    setStatus("error");
-  }
-};
+  };
 
   return (
     <section className="bg-white py-16">

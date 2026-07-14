@@ -1,9 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 
-
 const Footer = () => {
-
   return (
     <footer className="bg-[#3a3a3a] text-[#b4b4b4] font-sans pt-20 relative">
       {/* Column Responsive Layout Grid */}
@@ -147,18 +145,18 @@ const Footer = () => {
           </ul>
         </div>
         <div>
-  <h3 className="text-white text-[15px] font-semibold tracking-wide mb-5 font-sans">
-    Get In Touch
-  </h3>
+          <h3 className="text-white text-[15px] font-semibold tracking-wide mb-5 font-sans">
+            Get In Touch
+          </h3>
 
-  <p className="space-y-[22px] text-[13.5px] text-white font-sans">
-    Looking for secure ICT solutions or IT consulting? Our team is ready to
-    help you transform your business with innovative technology solutions.
-  </p>
+          <p className="space-y-[22px] text-[13.5px] text-white font-sans">
+            Looking for secure ICT solutions or IT consulting? Our team is ready
+            to help you transform your business with innovative technology
+            solutions.
+          </p>
 
-  <div>
-
-    {/* <a
+          <div>
+            {/* <a
       href="mailto:awanish@sandilyainfotech.com"
       className="flex items-center gap-3 bg-[#4a4a4a] hover:bg-[#2e6cee] transition-all duration-300 rounded-lg px-4 py-3 text-white"
     >
@@ -166,7 +164,7 @@ const Footer = () => {
       <span>Email Us</span>
     </a> */}
 
-    {/* <a
+            {/* <a
       href="tel:+919310281314"
       className="flex items-center gap-3 bg-[#4a4a4a] hover:bg-[#16a34a] transition-all duration-300 rounded-lg px-4 py-3 text-white"
     >
@@ -174,24 +172,23 @@ const Footer = () => {
       <span>Call Us</span>
     </a> */}
 
-    <Link
+            <Link
   to="/contact"
   onClick={(e) => {
     if (location.pathname === "/contact") {
-      e.preventDefault(); // same route navigation ko prevent karo
+      e.preventDefault();
       window.scrollTo({
         top: 0,
         behavior: "smooth",
       });
     }
   }}
-  className="flex items-center justify-center bg-[#2e6cee] hover:bg-[#1b5bdc] text-white font-semibold rounded-full py-3 mt-5 transition"
+  className="inline-flex items-center justify-center border border-[#2e6cee] text-[#2e6cee] bg-transparent hover:bg-[#2e6cee] hover:text-white font-medium rounded-full px-6 py-2 mt-5 transition-all duration-300"
 >
   Contact Us
 </Link>
-
-  </div>
-</div>
+          </div>
+        </div>
       </div>
 
       {/* Absolute Bottom Copyright Panel Tray */}
