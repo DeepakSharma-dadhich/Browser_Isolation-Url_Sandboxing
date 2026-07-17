@@ -1,9 +1,37 @@
-node_modules/
-.env
-venv/
-sandbox-venv/
+# Python
 __pycache__/
 *.pyc
-.DS_Store
-dist/
-.vite/
+.venv/
+
+# Node
+node_modules/
+
+# Runtime data
+shared/output/
+shared/reports/
+shared/screenshots/
+shared/logs/
+
+vm-agent/shared/output/
+vm-agent/shared/reports/
+vm-agent/shared/screenshots/
+vm-agent/shared/logs/
+vm-agent/shared/completed/
+vm-agent/shared/failed/
+
+vm-agent/reports/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+# Virtual environments
+venv/
+vm-agent/venv/
+
+# Ignore all generated runtime folders
+shared/
+vm-agent/shared/
+vm-agent/reports/

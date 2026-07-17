@@ -1,41 +1,114 @@
-// analyze.controller.js
+"use strict";
 
-// Business logic:
-// Receive URL
-// Validate URL
-// Create Session ID
-// Call VM Service
-// Return response
+/**
+ * URL analysis API controller.
+ *
+ * This controller does not run browser analysis.
+ * It delegates host-to-VM communication to vmAgent.service.js.
+ */
+
+const {
+  submitAnalysis,
+  getAnalysisStatus,
+  getAnalysisReport
+} = require(
+  "../services/vmAgent.service"
+);
 
 
-const vmAgentService = require("../services/vmAgent.service");
+/**
+ * POST /api/analyze
+ *
+ * Body:
+ *
+ * {
+ *   "url": "https://example.com",
+ *   "metadata": {}
+ * }
+ */
+async function analyzeUrl(
+  request,
+  response,
+  next
+) {
+  try {
+    const result =
+      await submitAnalysis({
+        url: request.body?.url,
+        metadata:
+          request.body?.metadata
+      });
 
-const analyzeURL = async (req, res) => {
-    try {
-        const { url } = req.body;
+    return response
+      .status(202)
+      .json({
+        success: true,
 
-        if (!url) {
-            return res.status(400).json({
-                success: false,
-                message: "URL is required"
-            });
-        }
+        message:
+          "URL analysis request was queued successfully.",
 
-        const result = await vmAgentService.startAnalysis(url);
+        data: result
+      });
+  } catch (error) {
+    return next(error);
+  }
+}
 
-        return res.status(200).json({
-            success: true,
-            data: result
-        });
 
-    } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-};
+/**
+ * GET /api/analyze/:sessionId/status
+ */
+async function getStatus(
+  request,
+  response,
+  next
+) {
+  try {
+    const result =
+      await getAnalysisStatus(
+        request.params.sessionId
+      );
+
+    return response
+      .status(200)
+      .json({
+        success: true,
+        data: result
+      });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+
+/**
+ * GET /api/analyze/:sessionId/report
+ */
+async function getReport(
+  request,
+  response,
+  next
+) {
+  try {
+    const report =
+      await getAnalysisReport(
+        request.params.sessionId
+      );
+
+    return response
+      .status(200)
+      .json({
+        success: true,
+        data: report
+      });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 
 module.exports = {
-    analyzeURL
+  analyzeUrl,
+  getStatus,
+  getReport
 };
