@@ -1,38 +1,223 @@
-// app.js
-// Start Express server
-// Load environment variables
-// Register routes
-// Handle errors
+"use strict";
 
-// Import required packages
-const express = require("express");
-const cors = require("cors");
 require("dotenv").config();
 
-// Import routes
-const analyzeRoutes = require("./routes/analyze.routes");
+const express = require("express");
+const cors = require("cors");
 
-// Create Express application
+const analyzeRoutes = require(
+  "./routes/analyze.routes"
+);
+
+const {
+  initializeSharedDirectories,
+  getSharedFolderInfo,
+  VmAgentServiceError
+} = require(
+  "./services/vmAgent.service"
+);
+
+
 const app = express();
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+const PORT = Number(
+  process.env.PORT || 3000
+);
 
-// Health Check Route
-app.get("/", (req, res) => {
-    res.json({
-        success: true,
-        message: "Email-URL Sandbox Host Server is Running"
+
+app.disable(
+  "x-powered-by"
+);
+
+
+/**
+ * Allow the frontend and development tools to call the API.
+ */
+app.use(
+  cors({
+    origin: true,
+    methods: [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization"
+    ]
+  })
+);
+
+
+/**
+ * Limit request size because this API accepts only URL metadata.
+ */
+app.use(
+  express.json({
+    limit: "32kb"
+  })
+);
+
+
+/**
+ * Basic service endpoint.
+ */
+app.get(
+  "/",
+  (
+    request,
+    response
+  ) => {
+    return response.json({
+      service:
+        "Email URL Sandbox Host Backend",
+      version: "2.0.0",
+      status: "running"
     });
-});
+  }
+);
 
-// Register Routes
-app.use("/api/analyze", analyzeRoutes);
 
-// Start Server
-const PORT = process.env.PORT || 5000;
+/**
+ * Host backend health endpoint.
+ */
+app.get(
+  "/api/health",
+  (
+    request,
+    response
+  ) => {
+    return response.json({
+      status: "healthy",
+      service: "host-backend",
+      version: "2.0.0",
+      timestamp:
+        new Date().toISOString(),
+      shared_folder:
+        getSharedFolderInfo()
+    });
+  }
+);
 
-app.listen(PORT, () => {
-    console.log(`Host Server running on http://localhost:${PORT}`);
-});
+
+/**
+ * URL-analysis routes.
+ */
+app.use(
+  "/api/analyze",
+  analyzeRoutes
+);
+
+
+/**
+ * Unknown endpoint handler.
+ */
+app.use(
+  (
+    request,
+    response
+  ) => {
+    return response
+      .status(404)
+      .json({
+        success: false,
+        error: {
+          code:
+            "ENDPOINT_NOT_FOUND",
+          message:
+            "Endpoint not found."
+        }
+      });
+  }
+);
+
+
+/**
+ * Central error handler.
+ */
+app.use(
+  (
+    error,
+    request,
+    response,
+    next
+  ) => {
+    console.error(
+      "[Host Backend Error]",
+      error
+    );
+
+    const statusCode =
+      error instanceof
+      VmAgentServiceError
+        ? error.statusCode
+        : Number(
+            error.statusCode
+          ) || 500;
+
+    const errorCode =
+      error.code ||
+      "INTERNAL_SERVER_ERROR";
+
+    const message =
+      statusCode >= 500 &&
+      process.env.NODE_ENV !==
+        "development"
+        ? "Internal server error."
+        : error.message;
+
+    return response
+      .status(statusCode)
+      .json({
+        success: false,
+
+        error: {
+          code: errorCode,
+          message
+        }
+      });
+  }
+);
+
+
+/**
+ * Start server only after shared directories are accessible.
+ */
+async function startServer() {
+  try {
+    await initializeSharedDirectories();
+
+    app.listen(
+      PORT,
+      "0.0.0.0",
+      () => {
+        console.log(
+          "Email URL Sandbox Host Backend"
+        );
+
+        console.log(
+          `Server: http://localhost:${PORT}`
+        );
+
+        console.log(
+          "Shared folder:",
+          getSharedFolderInfo()
+            .shared_root
+        );
+      }
+    );
+  } catch (error) {
+    console.error(
+      "Unable to initialize host backend:",
+      error
+    );
+
+    process.exit(1);
+  }
+}
+
+
+startServer();
+
+
+module.exports = app;
