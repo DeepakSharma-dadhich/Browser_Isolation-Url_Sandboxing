@@ -1,0 +1,297 @@
+@import "tailwindcss";
+
+/* Mirror original tracking restrictions when overlay runs active */
+body.menu-open {
+  overflow: hidden !important;
+  touch-action: none;
+}
+
+/* ==========================
+   Hero Scan Line
+========================== */
+
+.scan-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 15%;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(59, 130, 246, 0.9),
+    transparent
+  );
+  animation: scanMove 2s ease-in-out infinite;
+}
+
+@keyframes scanMove {
+  0% {
+    top: 2%;
+    opacity: 0;
+  }
+
+  15% {
+    opacity: 1;
+  }
+
+  50% {
+    top: 50%;
+    opacity: 1;
+  }
+
+  85% {
+    opacity: 1;
+  }
+
+  100% {
+    top: 92%;
+    opacity: 0;
+  }
+}
+
+/* ======================
+   Floating Cards
+====================== */
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.animate-float {
+  animation: float 5s ease-in-out infinite;
+}
+
+.animate-float-slow {
+  animation: float 7s ease-in-out infinite;
+}
+
+.animate-float-fast {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* ==========================
+   Animated Gradient Text
+========================== */
+
+.animated-gradient{
+    background:linear-gradient(
+        90deg,
+        #3B82F6,
+        #06B6D4,
+        #8B5CF6,
+        #06B6D4,
+        #3B82F6
+    );
+
+    background-size:200% auto;
+
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+
+    animation:gradientMove 4s linear infinite;
+}
+
+@keyframes gradientMove{
+
+    from{
+        background-position:0%;
+    }
+
+    to{
+        background-position:200%;
+    }
+
+}
+
+/* ==========================
+   Cursor Blink
+========================== */
+
+.typing-cursor{
+  display:inline-block;
+  color:#3B82F6;
+  
+  font-weight:300;
+  font-size:0.9em;
+
+  font-size: 1.1em;
+  transform: scaleY(1);
+
+  animation:cursorBlink .8s steps(1) infinite;
+}
+
+@keyframes cursorBlink{
+
+    50%{
+        opacity:0;
+    }
+
+}
+
+/* ======================
+   Button Shine
+====================== */
+
+.button-shine{
+    position:absolute;
+    inset:0;
+    left:-120%;
+    background:linear-gradient(
+        90deg,
+        transparent,
+        rgba(255,255,255,.25),
+        transparent
+    );
+
+    animation:buttonShine 3s ease-in-out infinite;
+}
+
+@keyframes buttonShine{
+
+    0%{
+        left:-120%;
+    }
+
+    100%{
+        left:120%;
+    }
+
+}
+
+/* ======================
+   Arrow Hover
+====================== */
+
+.button-arrow{
+
+    transition:.3s;
+}
+
+button:hover .button-arrow{
+
+    transform:translateX(4px);
+
+}
+
+/* =======================================
+   HERO PARTICLES
+======================================= */
+
+.hero-particle{
+    position:absolute;
+    border-radius:9999px;
+
+    background:#3B82F6;
+
+    opacity:.18;
+
+    filter:blur(.3px);
+
+    box-shadow:
+        0 0 8px #3B82F6,
+        0 0 18px rgba(59,130,246,.6);
+
+    animation:particleFloat linear infinite;
+}
+
+.hero-particle:nth-child(3n){
+    background:#06B6D4;
+    box-shadow:0 0 14px #06B6D4;
+}
+
+.hero-particle:nth-child(5n){
+    background:#8B5CF6;
+    box-shadow:0 0 14px #8B5CF6;
+}
+
+@keyframes particleFloat{
+
+    0%{
+        transform:translateY(0) scale(1);
+        opacity:.15;
+    }
+
+    50%{
+        transform:translateY(-25px) scale(1.4);
+        opacity:.7;
+    }
+
+    100%{
+        transform:translateY(0) scale(1);
+        opacity:.15;
+    }
+
+}
+
+
+@keyframes scrollWheel{
+
+  0%{
+    transform:translate(-50%,0);
+    opacity:1;
+  }
+
+  100%{
+    transform:translate(-50%,16px);
+    opacity:0;
+  }
+
+}
+
+.animate-scrollWheel{
+  animation:scrollWheel 1.5s infinite;
+}
+
+@keyframes bounceSlow{
+
+  0%,100%{
+    transform:translateY(0);
+  }
+
+  50%{
+    transform:translateY(8px);
+  }
+
+}
+
+.animate-bounceSlow{
+  animation:bounceSlow 1.8s infinite;
+}
+
+/* Icons */
+.icon-ping {
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+
+    /* Fallback value is Blue if no variable is passed down */
+    --glow: var(--pulse-color, 59, 130, 246);
+
+    box-shadow:
+        0 0 0 1px rgba(var(--glow), .6),
+        0 0 12px rgba(var(--glow), .55),
+        0 0 24px rgba(var(--glow), .35);
+
+    animation: iconPulse 2s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes iconPulse {
+    0%, 100% {
+        opacity: .45;
+    }
+    50% {
+        opacity: 1;
+    }
+}
