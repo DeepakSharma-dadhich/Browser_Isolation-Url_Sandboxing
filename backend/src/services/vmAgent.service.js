@@ -31,6 +31,14 @@ const BACKEND_ROOT = path.resolve(
   ".."
 );
 
+const {
+  saveJob,
+  getJob,
+  updateJob
+} = require(
+  "./jobStore.service"
+);
+
 
 /*
  * Email-URL-Sandbox/
@@ -506,6 +514,18 @@ async function submitAnalysis({
     requestPath,
     requestData
   );
+
+  await saveJob({
+  session_id: sessionId,
+
+  status: "queued",
+
+  submitted_at: submittedAt,
+
+  url: validatedUrl,
+
+  callback_received: false
+});
 
   return {
     session_id: sessionId,

@@ -185,8 +185,14 @@ app.use(
  */
 async function startServer() {
   try {
-    await initializeSharedDirectories();
+    const {
+  initializeJobStore
+} = require(
+  "./services/jobStore.service"
+);
 
+    await initializeSharedDirectories();
+    await initializeJobStore();
     app.listen(
       PORT,
       "0.0.0.0",
