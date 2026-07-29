@@ -15,12 +15,22 @@ It does not:
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
-from playwright.sync_api import BrowserContext, Page, Response
+from playwright.sync_api import (
+    BrowserContext,
+    Page,
+    Response,
+)
 
-from collectors.cookie_collector import collect_cookies
+from config import MAX_REDIRECTS
+from session_manager import (
+    SessionPaths,
+    utc_now_iso,
+)
+from utils.json_utils import write_json_atomic
+from utils.logging_utils import configure_logging
+
 from collectors.console_collector import (
     ConsoleCollector,
     create_console_collector,
@@ -39,10 +49,39 @@ from collectors.redirect_collector import (
     RedirectCollector,
     create_redirect_collector,
 )
-from config import MAX_REDIRECTS
-from session_manager import SessionPaths, utc_now_iso
-from utils.json_utils import write_json_atomic
-from utils.logging_utils import configure_logging
+from collectors.client_redirect_collector import (
+    ClientRedirectCollector,
+    create_client_redirect_collector,
+)
+
+
+try:
+    from collectors.cookie_collector import collect_cookies
+
+except ModuleNotFoundError:
+
+    def collect_cookies(
+        context: BrowserContext,
+    ) -> dict[str, Any]:
+        """
+        Temporary fallback used when cookie_collector.py is unavailable.
+
+        This keeps the browser evidence pipeline functional without
+        silently pretending that cookies were successfully collected.
+        """
+
+        return {
+            "collected_at": utc_now_iso(),
+            "cookie_count": 0,
+            "cookies": [],
+            "available": False,
+            "error": {
+                "type": "collector_unavailable",
+                "message": (
+                    "cookie_collector.py is not present."
+                ),
+            },
+        }
 
 
 logger = configure_logging(
@@ -66,11 +105,13 @@ class BrowserCollectors:
         console: ConsoleCollector,
         network: NetworkCollector,
         redirects: RedirectCollector,
+        client_redirects: ClientRedirectCollector,
         downloads: DownloadCollector,
     ) -> None:
         self.console = console
         self.network = network
         self.redirects = redirects
+        self.client_redirects = client_redirects
         self.downloads = downloads
 
 
@@ -105,6 +146,12 @@ def attach_collectors(
         maximum_redirects=MAX_REDIRECTS,
     )
 
+    client_redirect_collector = (
+        create_client_redirect_collector(
+            page
+        )
+    )
+
     download_collector = create_download_collector(
         page,
         paths.downloads_dir,
@@ -114,6 +161,7 @@ def attach_collectors(
         console=console_collector,
         network=network_collector,
         redirects=redirect_collector,
+        client_redirects=client_redirect_collector,
         downloads=download_collector,
     )
 
@@ -257,6 +305,9 @@ def collect_browser_evidence(
         "redirects": (
             collectors.redirects.get_data()
         ),
+        "client_redirects": (
+            collectors.client_redirects.get_data()
+        ),
         "downloads": (
             collectors.downloads.get_data()
         ),
@@ -307,6 +358,10 @@ def persist_browser_evidence(
         "redirects": (
             paths.redirects_dir
             / "redirects.json"
+        ),
+        "client_redirects": (
+            paths.redirects_dir
+            / "client_redirects.json"
         ),
         "downloads": (
             paths.downloads_dir

@@ -404,6 +404,273 @@ def analyze_url_transition(
         )
 
 
+
+def analyze_client_redirects(
+    evidence: dict[str, Any],
+    findings: list[dict[str, Any]],
+) -> None:
+    """
+    Analyze browser-side redirects that do not necessarily appear in
+    the HTTP redirect chain.
+
+    The parser intentionally accepts more than one field name so the
+    analyzer remains compatible with collector output revisions.
+    """
+
+    client_data = evidence.get(
+        "client_redirects",
+        {},
+    )
+
+    if not isinstance(client_data, dict):
+        return
+
+    events = client_data.get(
+        "events"
+    ) or client_data.get(
+        "redirects"
+    ) or client_data.get(
+        "client_redirects"
+    ) or []
+
+    if not isinstance(events, list):
+        events = []
+
+    def event_type(event: dict[str, Any]) -> str:
+        value = (
+            event.get("type")
+            or event.get("event_type")
+            or event.get("redirect_type")
+            or event.get("method")
+            or ""
+        )
+        return str(value).strip().lower()
+
+    normalized_types = [
+        event_type(event)
+        for event in events
+        if isinstance(event, dict)
+    ]
+
+    total_count = int(
+        client_data.get(
+            "client_redirect_count",
+            client_data.get(
+                "redirect_count",
+                client_data.get(
+                    "event_count",
+                    len(events),
+                ),
+            ),
+        )
+        or 0
+    )
+
+    meta_refresh_count = int(
+        client_data.get(
+            "meta_refresh_count",
+            sum(
+                1
+                for value in normalized_types
+                if "meta" in value
+                and "refresh" in value
+            ),
+        )
+        or 0
+    )
+
+    javascript_redirect_count = int(
+        client_data.get(
+            "javascript_redirect_count",
+            client_data.get(
+                "js_redirect_count",
+                sum(
+                    1
+                    for value in normalized_types
+                    if value in {
+                        "javascript",
+                        "javascript_redirect",
+                        "js_redirect",
+                        "location",
+                        "location_assign",
+                        "location_replace",
+                    }
+                    or "javascript" in value
+                    or value.startswith("location")
+                ),
+            ),
+        )
+        or 0
+    )
+
+    history_api_count = int(
+        client_data.get(
+            "history_api_count",
+            sum(
+                1
+                for value in normalized_types
+                if value in {
+                    "pushstate",
+                    "replacestate",
+                    "popstate",
+                    "history.pushstate",
+                    "history.replacestate",
+                }
+                or "pushstate" in value
+                or "replacestate" in value
+                or "popstate" in value
+            ),
+        )
+        or 0
+    )
+
+    hash_change_count = int(
+        client_data.get(
+            "hash_change_count",
+            client_data.get(
+                "hashchange_count",
+                sum(
+                    1
+                    for value in normalized_types
+                    if "hashchange" in value
+                    or value == "hash"
+                ),
+            ),
+        )
+        or 0
+    )
+
+    suspicious_domain_change_count = int(
+        client_data.get(
+            "domain_change_count",
+            client_data.get(
+                "cross_domain_count",
+                client_data.get(
+                    "external_redirect_count",
+                    0,
+                ),
+            ),
+        )
+        or 0
+    )
+
+    if meta_refresh_count > 0:
+        findings.append(
+            create_finding(
+                finding_id="CRED-001",
+                category="client_redirect",
+                title="Meta refresh redirect detected",
+                description=(
+                    "The page used an HTML meta-refresh instruction "
+                    "to navigate the browser to another location."
+                ),
+                severity="medium",
+                score=10,
+                evidence={
+                    "meta_refresh_count": meta_refresh_count,
+                    "events": events,
+                },
+            )
+        )
+
+    if javascript_redirect_count > 0:
+        findings.append(
+            create_finding(
+                finding_id="CRED-002",
+                category="client_redirect",
+                title="JavaScript redirect detected",
+                description=(
+                    "The page used JavaScript-controlled navigation, "
+                    "which can conceal a destination from a basic HTTP "
+                    "redirect inspection."
+                ),
+                severity="medium",
+                score=12,
+                evidence={
+                    "javascript_redirect_count": (
+                        javascript_redirect_count
+                    ),
+                    "events": events,
+                },
+            )
+        )
+
+    if history_api_count >= 3:
+        findings.append(
+            create_finding(
+                finding_id="CRED-003",
+                category="client_redirect",
+                title="Repeated History API navigation",
+                description=(
+                    "The page repeatedly changed browser history state. "
+                    "This may be legitimate single-page application "
+                    "behaviour, but it can also obscure navigation flow."
+                ),
+                severity="low",
+                score=5,
+                evidence={
+                    "history_api_count": history_api_count,
+                },
+            )
+        )
+
+    if hash_change_count >= 5:
+        findings.append(
+            create_finding(
+                finding_id="CRED-004",
+                category="client_redirect",
+                title="Excessive hash navigation",
+                description=(
+                    "The page changed the URL fragment several times "
+                    "during analysis."
+                ),
+                severity="low",
+                score=3,
+                evidence={
+                    "hash_change_count": hash_change_count,
+                },
+            )
+        )
+
+    if suspicious_domain_change_count > 0:
+        findings.append(
+            create_finding(
+                finding_id="CRED-005",
+                category="destination",
+                title="Client-side domain transition detected",
+                description=(
+                    "Browser-side navigation moved to a different "
+                    "hostname during page execution."
+                ),
+                severity="high",
+                score=18,
+                evidence={
+                    "domain_change_count": (
+                        suspicious_domain_change_count
+                    ),
+                    "events": events,
+                },
+            )
+        )
+
+    if total_count >= 10:
+        findings.append(
+            create_finding(
+                finding_id="CRED-006",
+                category="client_redirect",
+                title="Excessive client-side navigation",
+                description=(
+                    "The page generated a large number of browser-side "
+                    "navigation events."
+                ),
+                severity="high",
+                score=15,
+                evidence={
+                    "client_redirect_count": total_count,
+                },
+            )
+        )
+
 def analyze_downloads(
     evidence: dict[str, Any],
     findings: list[dict[str, Any]],
@@ -802,6 +1069,12 @@ def analyze_threats(
     )
 
     analyze_url_transition(
+        evidence,
+        findings,
+    )
+
+
+    analyze_client_redirects(
         evidence,
         findings,
     )
