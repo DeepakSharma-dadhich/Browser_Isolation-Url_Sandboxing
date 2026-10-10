@@ -53,35 +53,11 @@ from collectors.client_redirect_collector import (
     ClientRedirectCollector,
     create_client_redirect_collector,
 )
-
-
-try:
-    from collectors.cookie_collector import collect_cookies
-
-except ModuleNotFoundError:
-
-    def collect_cookies(
-        context: BrowserContext,
-    ) -> dict[str, Any]:
-        """
-        Temporary fallback used when cookie_collector.py is unavailable.
-
-        This keeps the browser evidence pipeline functional without
-        silently pretending that cookies were successfully collected.
-        """
-
-        return {
-            "collected_at": utc_now_iso(),
-            "cookie_count": 0,
-            "cookies": [],
-            "available": False,
-            "error": {
-                "type": "collector_unavailable",
-                "message": (
-                    "cookie_collector.py is not present."
-                ),
-            },
-        }
+from collectors.certificate_collector import collect_certificate
+from collectors.cookie_collector import collect_cookies
+from collectors.forms_collector import collect_forms
+from collectors.headers_collector import collect_headers
+from collectors.javascript_collector import collect_javascript
 
 
 logger = configure_logging(
@@ -260,6 +236,7 @@ def collect_browser_evidence(
     navigation_error: dict[str, Any] | None,
     popup_records: list[dict[str, Any]],
     dialog_records: list[dict[str, Any]],
+    network_guard: Any | None = None,
 ) -> dict[str, Any]:
     """
     Gather all browser evidence after navigation.
@@ -279,8 +256,17 @@ def collect_browser_evidence(
     )
 
     cookies = collect_cookies(
-        context
+        context,
+        page_url=page.url,
     )
+
+    forms = collect_forms(page)
+
+    headers = collect_headers(navigation_response)
+
+    javascript = collect_javascript(page)
+
+    certificate = collect_certificate(page, navigation_response)
 
     html = save_html_source(
         page=page,
@@ -296,6 +282,10 @@ def collect_browser_evidence(
     evidence = {
         "metadata": metadata,
         "cookies": cookies,
+        "forms": forms,
+        "headers": headers,
+        "javascript": javascript,
+        "certificate": certificate,
         "console": (
             collectors.console.get_data()
         ),
@@ -325,6 +315,16 @@ def collect_browser_evidence(
             ),
             "dialogs": dialog_records,
         },
+        "network_guard": (
+            network_guard.get_data()
+            if network_guard is not None
+            else {
+                "guard_active": False,
+                "blocked_count": 0,
+                "blocked_requests": [],
+                "has_ssrf_attempt": False,
+            }
+        ),
         "navigation_error": navigation_error,
         "collected_at": completed_at,
     }
@@ -348,6 +348,21 @@ def persist_browser_evidence(
         ),
         "cookies": (
             paths.cookies_dir / "cookies.json"
+        ),
+        "forms": (
+            paths.metadata_dir / "forms.json"
+        ),
+        "headers": (
+            paths.metadata_dir / "headers.json"
+        ),
+        "javascript": (
+            paths.metadata_dir / "javascript.json"
+        ),
+        "certificate": (
+            paths.metadata_dir / "certificate.json"
+        ),
+        "network_guard": (
+            paths.metadata_dir / "network_guard.json"
         ),
         "console": (
             paths.console_dir / "console.json"

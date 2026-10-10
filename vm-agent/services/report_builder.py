@@ -581,6 +581,7 @@ def build_threat_indicators(
         ),
         "mixed_protocol_detected": mixed_protocol,
         "literal_ip_detected": literal_ip,
+        "ssrf_attempt_detected": any("SSRF" in fid for fid in finding_ids),
         "finding_ids": finding_ids,
         "finding_categories": sorted(
             set(
@@ -700,6 +701,30 @@ def build_report(
     dialogs = as_dict(
         evidence.get(
             "dialogs"
+        )
+    )
+
+    forms = as_dict(
+        evidence.get(
+            "forms"
+        )
+    )
+
+    headers = as_dict(
+        evidence.get(
+            "headers"
+        )
+    )
+
+    javascript = as_dict(
+        evidence.get(
+            "javascript"
+        )
+    )
+
+    certificate = as_dict(
+        evidence.get(
+            "certificate"
         )
     )
 
@@ -1002,9 +1027,67 @@ def build_report(
                     0,
                 )
             ),
+            "form_count": as_int(
+                forms.get(
+                    "form_count",
+                    0,
+                )
+            ),
+            "password_field_count": as_int(
+                forms.get(
+                    "total_password_fields",
+                    0,
+                )
+            ),
+            "has_login_form": bool(
+                forms.get(
+                    "has_login_form",
+                    False,
+                )
+            ),
+            "is_https": bool(
+                certificate.get(
+                    "is_https",
+                    False,
+                )
+            ),
+            "tls_protocol": certificate.get(
+                "protocol"
+            ),
+            "inline_script_count": as_int(
+                javascript.get(
+                    "inline_script_count",
+                    0,
+                )
+            ),
+            "external_script_count": as_int(
+                javascript.get(
+                    "external_script_count",
+                    0,
+                )
+            ),
+            "ssrf_egress_blocked_count": as_int(
+                evidence.get("network_guard", {}).get(
+                    "blocked_count",
+                    0,
+                )
+            ),
         },
 
         "browser_behaviour": {
+            "network_egress_guard": evidence.get(
+                "network_guard",
+                {},
+            ),
+            "forms": forms,
+            "security_headers": headers.get("security_headers", {}),
+            "tls": certificate,
+            "scripts": {
+                "inline_count": javascript.get("inline_script_count", 0),
+                "external_count": javascript.get("external_script_count", 0),
+                "external_domains": javascript.get("external_domains", []),
+                "suspicious_signals": javascript.get("suspicious_signals", []),
+            },
             "http_redirects": {
                 "count": redirect_count,
                 "events": http_events,

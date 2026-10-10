@@ -24,6 +24,7 @@ Final report:
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import os
 from pathlib import Path
 from typing import Any
 
@@ -53,6 +54,7 @@ from services.browser_service import (
     persist_browser_evidence,
 )
 
+from services.network_guard import NetworkGuard
 from services.decision_engine import make_decision
 from services.report_builder import build_report
 from services.threat_analyzer import analyze_threats
@@ -257,6 +259,7 @@ def analyze_url(
     page: Page | None = None
     navigation_response: Response | None = None
     collectors: BrowserCollectors | None = None
+    network_guard: NetworkGuard | None = None
 
     popup_records: list[
         dict[str, Any]
@@ -304,6 +307,7 @@ def analyze_url(
             playwright_instance
             .chromium
             .launch(
+                channel=os.getenv("SANDBOX_BROWSER_CHANNEL", "chrome"),
                 headless=BROWSER_HEADLESS,
                 args=[
                     "--disable-dev-shm-usage",
@@ -333,6 +337,11 @@ def analyze_url(
                 "height": 768,
             },
         )
+
+        # Perimeter security: intercept egress & block SSRF / private IP access
+        network_guard = NetworkGuard(
+            requested_url=url
+        ).attach_to_context(context)
 
         context.set_default_timeout(
             BROWSER_ACTION_TIMEOUT_MS
@@ -502,13 +511,20 @@ def analyze_url(
             )
 
         except Exception as exc:
-            navigation_error = {
-                "type": "navigation_error",
-                "exception": (
-                    type(exc).__name__
-                ),
-                "message": str(exc),
-            }
+            if network_guard and any(b.get("is_navigation_request") for b in network_guard.blocked_requests):
+                navigation_error = {
+                    "type": "ssrf_egress_blocked",
+                    "exception": type(exc).__name__,
+                    "message": "Target navigation blocked by NetworkGuard: forbidden scheme, private/reserved IP, or cloud metadata access.",
+                }
+            else:
+                navigation_error = {
+                    "type": "navigation_error",
+                    "exception": (
+                        type(exc).__name__
+                    ),
+                    "message": str(exc),
+                }
 
             logger.warning(
                 "Navigation error. "
@@ -558,6 +574,7 @@ def analyze_url(
             ),
             popup_records=popup_records,
             dialog_records=dialog_records,
+            network_guard=network_guard,
         )
 
     except Exception as exc:

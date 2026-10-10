@@ -39,6 +39,19 @@ const {
   "./jobStore.service"
 );
 
+const {
+  createAnalysis,
+  updateAnalysisStatus,
+  saveAnalysisResult,
+  getAnalysisById,
+  getReportByAnalysisId,
+  listAnalyses
+} = require(
+  "./analysisRepository"
+);
+
+const { dispatchWebhook } = require("./webhookDispatcher");
+
 
 /*
  * Email-URL-Sandbox/
@@ -97,6 +110,11 @@ const OUTPUT_DIR = path.join(
 const REPORTS_DIR = path.join(
   SHARED_ROOT,
   "reports"
+);
+
+const SCREENSHOTS_DIR = path.join(
+  SHARED_ROOT,
+  "screenshots"
 );
 
 
@@ -466,7 +484,11 @@ function validateMetadata(metadata) {
  */
 async function submitAnalysis({
   url,
-  metadata
+  metadata,
+  orgId,
+  userId,
+  sourceChannel,
+  idempotencyKey
 }) {
   const validatedUrl =
     validateUrl(url);
@@ -487,7 +509,7 @@ async function submitAnalysis({
     url: validatedUrl,
     submitted_at: submittedAt,
     source:
-      "email_security_host_backend",
+      sourceChannel || "email_security_host_backend",
     request_version: "2.0",
     metadata: validatedMetadata
   };
@@ -515,17 +537,32 @@ async function submitAnalysis({
     requestData
   );
 
+  try {
+    await createAnalysis({
+      sessionId,
+      url: validatedUrl,
+      submittedAt,
+      metadata: validatedMetadata,
+      orgId: orgId,
+      userId: userId || null,
+      sourceChannel:
+        sourceChannel ||
+        (validatedMetadata?.submitted_from === "email_security"
+          ? "EMAIL_SECURITY"
+          : "MANUAL"),
+      idempotencyKey: idempotencyKey || null
+    });
+  } catch (dbErr) {
+    console.error("[PostgreSQL createAnalysis Error]", dbErr.message);
+  }
+
   await saveJob({
-  session_id: sessionId,
-
-  status: "queued",
-
-  submitted_at: submittedAt,
-
-  url: validatedUrl,
-
-  callback_received: false
-});
+    session_id: sessionId,
+    status: "queued",
+    submitted_at: submittedAt,
+    url: validatedUrl,
+    callback_received: false
+  }).catch(() => {});
 
   return {
     session_id: sessionId,
@@ -715,13 +752,35 @@ async function getAnalysisStatus(
       sessionId
     );
 
+  /*
+   * 1. Check PostgreSQL first
+   */
+  try {
+    const dbAnalysis =
+      await getAnalysisById(
+        validatedSessionId
+      );
+
+    if (
+      dbAnalysis &&
+      dbAnalysis.report_ready
+    ) {
+      return dbAnalysis;
+    }
+  } catch (err) {
+    console.error(
+      "[PostgreSQL getAnalysisById Error]",
+      err.message
+    );
+  }
+
   const paths =
     getSessionPaths(
       validatedSessionId
     );
 
   /*
-   * Final report is authoritative.
+   * 2. Final report on disk check -> persist to PostgreSQL
    */
   if (
     await pathExists(
@@ -732,6 +791,70 @@ async function getAnalysisStatus(
       await readJsonFile(
         paths.reportFile
       );
+
+    const shotPath = path.join(
+      SCREENSHOTS_DIR,
+      validatedSessionId,
+      "final_page.png"
+    );
+
+    const artifacts = [];
+    if (await pathExists(shotPath)) {
+      try {
+        const stat =
+          await fs.promises.stat(
+            shotPath
+          );
+        artifacts.push({
+          artifact_type: "SCREENSHOT",
+          file_name: "final_page.png",
+          storage_path: shotPath,
+          mime_type: "image/png",
+          size_bytes: stat.size
+        });
+      } catch {}
+    }
+
+    try {
+      await saveAnalysisResult(
+        validatedSessionId,
+        report,
+        artifacts
+      );
+
+      // Asynchronously dispatch webhook if callback_url was registered
+      const decision = report.decision || {};
+      const analysis = report.analysis || {};
+      const target = report.target || {};
+      const updated = await getAnalysisById(validatedSessionId);
+      const effectiveMetadata = {
+        ...(updated?.metadata || {}),
+        ...(report.metadata || {})
+      };
+
+      dispatchWebhook({
+        sessionId: validatedSessionId,
+        url: target.submitted_url || report.submitted_url,
+        verdict: decision.verdict,
+        recommendedAction: decision.recommended_action,
+        allowUserAccess: decision.allow_user_access,
+        riskScore: analysis.risk_score,
+        riskLevel: analysis.risk_level,
+        durationMs: report.execution?.duration_ms,
+        findingCount: analysis.finding_count,
+        findings: analysis.findings,
+        metadata: effectiveMetadata
+      }).catch((whErr) => {
+        console.error("[Webhook Dispatch Error]", whErr.message);
+      });
+
+      if (updated) return updated;
+    } catch (saveErr) {
+      console.error(
+        "[PostgreSQL saveAnalysisResult Error]",
+        saveErr.message
+      );
+    }
 
     return {
       session_id:
@@ -744,7 +867,7 @@ async function getAnalysisStatus(
   }
 
   /*
-   * status.json provides detailed running state.
+   * 3. status.json provides detailed running state.
    */
   if (
     await pathExists(
@@ -755,6 +878,11 @@ async function getAnalysisStatus(
       await readJsonFile(
         paths.statusFile
       );
+
+    await updateAnalysisStatus(
+      validatedSessionId,
+      "RUNNING"
+    ).catch(() => {});
 
     return {
       session_id:
@@ -789,6 +917,11 @@ async function getAnalysisStatus(
       paths.processingFile
     )
   ) {
+    await updateAnalysisStatus(
+      validatedSessionId,
+      "RUNNING"
+    ).catch(() => {});
+
     return {
       session_id:
         validatedSessionId,
@@ -810,6 +943,17 @@ async function getAnalysisStatus(
     };
   }
 
+  try {
+    const dbFallback =
+      await getAnalysisById(
+        validatedSessionId
+      );
+
+    if (dbFallback) {
+      return dbFallback;
+    }
+  } catch {}
+
   const failedMatches =
     await findMatchingFiles(
       FAILED_DIR,
@@ -819,6 +963,15 @@ async function getAnalysisStatus(
   if (
     failedMatches.length > 0
   ) {
+    await updateAnalysisStatus(
+      validatedSessionId,
+      "FAILED",
+      {
+        error_message:
+          "The VM Agent could not complete this analysis."
+      }
+    ).catch(() => {});
+
     return {
       session_id:
         validatedSessionId,
@@ -867,6 +1020,28 @@ async function getAnalysisReport(
       sessionId
     );
 
+  /*
+   * 1. Check PostgreSQL first
+   */
+  try {
+    const dbReport =
+      await getReportByAnalysisId(
+        validatedSessionId
+      );
+
+    if (dbReport) {
+      return dbReport;
+    }
+  } catch (err) {
+    console.error(
+      "[PostgreSQL getReportByAnalysisId Error]",
+      err.message
+    );
+  }
+
+  /*
+   * 2. Fall back to disk if not yet in database
+   */
   const reportPath = path.join(
     REPORTS_DIR,
     validatedSessionId,
@@ -883,9 +1058,19 @@ async function getAnalysisReport(
     );
   }
 
-  return readJsonFile(
-    reportPath
-  );
+  const report =
+    await readJsonFile(
+      reportPath
+    );
+
+  try {
+    await saveAnalysisResult(
+      validatedSessionId,
+      report
+    );
+  } catch {}
+
+  return report;
 }
 
 
@@ -905,7 +1090,9 @@ function getSharedFolderInfo() {
     output_directory:
       OUTPUT_DIR,
     reports_directory:
-      REPORTS_DIR
+      REPORTS_DIR,
+    screenshots_directory:
+      SCREENSHOTS_DIR
   };
 }
 
@@ -917,5 +1104,7 @@ module.exports = {
   getAnalysisStatus,
   getAnalysisReport,
   getSharedFolderInfo,
-  validateUrl
+  validateUrl,
+  listAnalyses,
+  SCREENSHOTS_DIR
 };

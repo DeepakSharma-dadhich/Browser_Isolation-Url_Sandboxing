@@ -1,0 +1,80 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: browseguard-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Daksh123}
+      POSTGRES_DB: ${POSTGRES_DB:-Browser_Isolation}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d Browser_Isolation"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: browseguard-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-Daksh123}@postgres:5432/${POSTGRES_DB:-Browser_Isolation}
+      SANDBOX_SHARED_ROOT: /shared
+      BROWSEGUARD_WEBHOOK_SECRET: ${BROWSEGUARD_WEBHOOK_SECRET:-bg_wh_secret_default_2026}
+    ports:
+      - "3000:3000"
+    volumes:
+      - sandbox_shared:/shared
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  worker:
+    build:
+      context: ./vm-agent
+      dockerfile: Dockerfile
+    container_name: browseguard-worker
+    restart: unless-stopped
+    environment:
+      SHARED_ROOT: /shared
+      POLL_INTERVAL_SECONDS: 1.0
+      BROWSEGUARD_ENVIRONMENT: isolated_container
+    volumes:
+      - sandbox_shared:/shared
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: browseguard-frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    name: browseguard_pgdata
+  sandbox_shared:
+    name: browseguard_shared

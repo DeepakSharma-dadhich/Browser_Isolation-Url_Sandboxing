@@ -1,0 +1,13 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.venv
+venv
+shared/input/*
+shared/processing/*
+shared/completed/*
+shared/failed/*
+shared/reports/*
+shared/screenshots/*
+logs/*.log

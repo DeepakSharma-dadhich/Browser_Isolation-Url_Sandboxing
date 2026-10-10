@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BrowseGuard Shield</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="popup-header">
+      <div class="brand">
+        <span class="shield-icon">🛡️</span>
+        <div>
+          <h1>BrowseGuard</h1>
+          <p>Zero-Trust Link Shield</p>
+        </div>
+      </div>
+      <div class="status-badge" id="shieldStatus">
+        <span class="status-dot"></span> ACTIVE
+      </div>
+    </header>
+
+    <!-- Protection Stats -->
+    <div class="stats-grid">
+      <div class="stat-box">
+        <span class="stat-label">LINKS SCANNED</span>
+        <span class="stat-value" id="statScanned">0</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">THREATS BLOCKED</span>
+        <span class="stat-value danger" id="statBlocked">0</span>
+      </div>
+    </div>
+
+    <!-- Quick Scan Box -->
+    <div class="scanner-card">
+      <label for="urlInput">Quick Threat Scanner</label>
+      <div class="input-row">
+        <input type="text" id="urlInput" placeholder="Paste suspicious URL..." autocomplete="off">
+        <button id="scanBtn">Scan</button>
+      </div>
+
+      <!-- Result Card -->
+      <div id="scanResult" class="scan-result hidden">
+        <div class="result-header">
+          <span class="result-badge" id="resultVerdict">MALICIOUS</span>
+          <span class="result-score" id="resultScore">Score: 100/100</span>
+        </div>
+        <p class="result-action" id="resultAction">Action: BLOCK</p>
+        <a id="resultLink" class="result-view-btn" href="#" target="_blank">View Forensic Report</a>
+      </div>
+    </div>
+
+    <!-- Footer Actions -->
+    <footer class="popup-footer">
+      <a href="http://localhost:5173" target="_blank" class="footer-link">Live Dashboard</a>
+      <span class="separator">•</span>
+      <a href="../options/options.html" target="_blank" class="footer-link">Settings</a>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

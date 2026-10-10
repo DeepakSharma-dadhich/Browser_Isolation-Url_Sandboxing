@@ -10,9 +10,17 @@ from .browser_service import (
 )
 
 
+from .network_guard import (
+    NetworkGuard,
+    evaluate_target,
+)
+
+
 __all__ = [
     "BrowserCollectors",
     "attach_collectors",
     "collect_browser_evidence",
     "persist_browser_evidence",
+    "NetworkGuard",
+    "evaluate_target",
 ]

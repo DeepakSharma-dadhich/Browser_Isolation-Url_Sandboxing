@@ -54,6 +54,9 @@ def resolve_shared_root() -> Path:
     if configured_path:
         return Path(configured_path).expanduser().resolve()
 
+    if (VM_AGENT_ROOT / "shared").exists():
+        return (VM_AGENT_ROOT / "shared").resolve()
+
     return (PROJECT_ROOT / "shared").resolve()
 
 

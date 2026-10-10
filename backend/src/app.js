@@ -2,11 +2,23 @@
 
 require("dotenv").config();
 
+const http = require("http");
 const express = require("express");
 const cors = require("cors");
+const { WebSocketServer } = require("ws");
+
+const {
+  launchRbiSession,
+  bridgeWebSocketConnection,
+  terminateRbiSession
+} = require("./services/rbiManager.service");
 
 const analyzeRoutes = require(
   "./routes/analyze.routes"
+);
+
+const analysesV1Routes = require(
+  "./routes/v1/analyses.routes"
 );
 
 const {
@@ -17,6 +29,8 @@ const {
   "./services/vmAgent.service"
 );
 
+
+const authRoutes = require("./routes/auth.routes");
 
 const app = express();
 
@@ -43,7 +57,10 @@ app.use(
     ],
     allowedHeaders: [
       "Content-Type",
-      "Authorization"
+      "Authorization",
+      "X-API-Key",
+      "X-Extension-Token",
+      "X-Organization-Id"
     ]
   })
 );
@@ -78,35 +95,87 @@ app.get(
 );
 
 
+const { testConnection } = require("./config/db");
+
 /**
  * Host backend health endpoint.
  */
 app.get(
   "/api/health",
-  (
-    request,
-    response
-  ) => {
+  async (request, response) => {
+    let dbStatus = "connected";
+    let dbDetails = null;
+
+    try {
+      dbDetails = await testConnection();
+    } catch (err) {
+      dbStatus = "disconnected";
+    }
+
     return response.json({
-      status: "healthy",
-      service: "host-backend",
-      version: "2.0.0",
-      timestamp:
-        new Date().toISOString(),
-      shared_folder:
-        getSharedFolderInfo()
+      status: dbStatus === "connected" ? "healthy" : "degraded",
+      service: "browseguard-backend",
+      version: "2.1.0",
+      database: {
+        status: dbStatus,
+        details: dbDetails
+      },
+      timestamp: new Date().toISOString(),
+      shared_folder: getSharedFolderInfo()
     });
   }
 );
 
 
 /**
- * URL-analysis routes.
+ * URL-analysis routes (legacy & web dashboard).
  */
 app.use(
   "/api/analyze",
   analyzeRoutes
 );
+
+/**
+ * Enterprise Authentication & User Account routes.
+ */
+app.use(
+  "/api/v1/auth",
+  authRoutes
+);
+
+/**
+ * Enterprise REST API v1 (Email Threat Detection & Integrations).
+ */
+app.use(
+  "/api/v1/analyses",
+  analysesV1Routes
+);
+
+/**
+ * Remote Browser Isolation (RBI) endpoints
+ */
+app.post("/api/v1/rbi/launch", async (req, res, next) => {
+  try {
+    const { url } = req.body || {};
+    if (!url || typeof url !== "string") {
+      return res.status(400).json({ success: false, error: "Valid url is required" });
+    }
+    const sessionId = `rbi_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const sessionData = await launchRbiSession({ url, sessionId });
+    return res.status(200).json({
+      success: true,
+      message: "Remote Browser Isolation session initialized.",
+      data: sessionData
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+app.post("/api/v1/rbi/:sessionId/terminate", (req, res) => {
+  const terminated = terminateRbiSession(req.params.sessionId);
+  return res.json({ success: true, terminated });
+});
 
 
 /**
@@ -185,39 +254,43 @@ app.use(
  */
 async function startServer() {
   try {
-    const {
-  initializeJobStore
-} = require(
-  "./services/jobStore.service"
-);
+    const { runMigrations } = require("./db/migrate");
+    const { initializeJobStore } = require("./services/jobStore.service");
 
+    console.log("[BrowseGuard Backend] Connecting to PostgreSQL...");
+    const dbInfo = await testConnection();
+    console.log(`[BrowseGuard Backend] Connected to PostgreSQL (${dbInfo.database})`);
+
+    await runMigrations();
     await initializeSharedDirectories();
     await initializeJobStore();
-    app.listen(
-      PORT,
-      "0.0.0.0",
-      () => {
-        console.log(
-          "Email URL Sandbox Host Backend"
-        );
 
-        console.log(
-          `Server: http://localhost:${PORT}`
-        );
+    const server = http.createServer(app);
+    const wss = new WebSocketServer({ noServer: true });
 
-        console.log(
-          "Shared folder:",
-          getSharedFolderInfo()
-            .shared_root
-        );
+    server.on("upgrade", (request, socket, head) => {
+      try {
+        const { pathname } = new URL(request.url, `http://${request.headers.host || "localhost"}`);
+        if (pathname.startsWith("/ws/rbi/")) {
+          const sessionId = pathname.replace("/ws/rbi/", "");
+          wss.handleUpgrade(request, socket, head, (ws) => {
+            bridgeWebSocketConnection(ws, sessionId);
+          });
+        } else {
+          socket.destroy();
+        }
+      } catch (err) {
+        socket.destroy();
       }
-    );
-  } catch (error) {
-    console.error(
-      "Unable to initialize host backend:",
-      error
-    );
+    });
 
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log("BrowseGuard Host Backend running with RBI Streaming");
+      console.log(`Server: http://localhost:${PORT}`);
+      console.log("Shared folder:", getSharedFolderInfo().shared_root);
+    });
+  } catch (error) {
+    console.error("Unable to initialize host backend:", error);
     process.exit(1);
   }
 }
