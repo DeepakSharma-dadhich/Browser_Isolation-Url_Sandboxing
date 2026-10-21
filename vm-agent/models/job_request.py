@@ -245,14 +245,9 @@ class JobRequest:
                 "url must contain a hostname."
             )
 
-        if (
-            parsed.username is not None
-            or parsed.password is not None
-        ):
-            raise JobRequestError(
-                "URLs containing embedded credentials "
-                "are not accepted."
-            )
+        # URLs with embedded credentials or userinfo (@ syntax) are accepted
+        # because phishers use userinfo deception in spearphishing emails.
+        # The threat analyzer will flag the deceptive structure as a threat finding.
 
         try:
             parsed.port

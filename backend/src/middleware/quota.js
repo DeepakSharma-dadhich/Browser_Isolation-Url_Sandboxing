@@ -24,7 +24,17 @@ async function checkScanQuota(req, res, next) {
 
     const org = orgRes.rows[0];
 
-    // 2. Check active concurrent scans
+    // 2. Auto-reap abandoned zombie sessions older than 5 minutes
+    await pool.query(
+      `UPDATE analyses 
+       SET status = 'FAILED', 
+           error_message = 'Session timed out after exceeding max execution window',
+           completed_at = NOW()
+       WHERE organization_id = $1 AND status IN ('QUEUED', 'RUNNING') AND submitted_at < NOW() - INTERVAL '5 minutes'`,
+      [orgId]
+    ).catch(() => {});
+
+    // 3. Check active concurrent scans
     const concurrentRes = await pool.query(
       `SELECT COUNT(*)::int AS active_count
        FROM analyses

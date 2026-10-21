@@ -35,3 +35,8 @@ vm-agent/venv/
 shared/
 vm-agent/shared/
 vm-agent/reports/
+backend/job-store/
+frontend/dist/
+*.png
+*.jpg
+

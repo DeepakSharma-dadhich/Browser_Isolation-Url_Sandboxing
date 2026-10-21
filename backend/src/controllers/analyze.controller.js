@@ -16,7 +16,8 @@ const {
   getAnalysisStatus,
   getAnalysisReport,
   listAnalyses,
-  SCREENSHOTS_DIR
+  SCREENSHOTS_DIR,
+  OUTPUT_DIR
 } = require("../services/vmAgent.service");
 
 /**
@@ -140,10 +141,76 @@ async function getScreenshot(request, response, next) {
   }
 }
 
+/**
+ * GET /api/analyze/:sessionId/har
+ */
+async function getHar(request, response, next) {
+  try {
+    const sessionId = request.params.sessionId;
+    const harPath = path.join(
+      OUTPUT_DIR,
+      sessionId,
+      "network",
+      "traffic.har"
+    );
+
+    if (!fs.existsSync(harPath)) {
+      return response.status(404).json({
+        success: false,
+        error: {
+          code: "HAR_NOT_FOUND",
+          message: "No HAR network traffic log is available for this session."
+        }
+      });
+    }
+
+    response.setHeader("Content-Type", "application/json");
+    response.setHeader(
+      "Content-Disposition",
+      `attachment; filename="analysis_${sessionId}_network.har"`
+    );
+    return response.sendFile(path.resolve(harPath));
+  } catch (error) {
+    return next(error);
+  }
+}
+
+/**
+ * GET /api/analyze/:sessionId/dom
+ */
+async function getDom(request, response, next) {
+  try {
+    const sessionId = request.params.sessionId;
+    const domPath = path.join(
+      OUTPUT_DIR,
+      sessionId,
+      "html",
+      "page.html"
+    );
+
+    if (!fs.existsSync(domPath)) {
+      return response.status(404).json({
+        success: false,
+        error: {
+          code: "DOM_NOT_FOUND",
+          message: "No DOM HTML snapshot is available for this session."
+        }
+      });
+    }
+
+    response.setHeader("Content-Type", "text/html; charset=utf-8");
+    return response.sendFile(path.resolve(domPath));
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   analyzeUrl,
   getStatus,
   getReport,
   getHistory,
-  getScreenshot
+  getScreenshot,
+  getHar,
+  getDom
 };

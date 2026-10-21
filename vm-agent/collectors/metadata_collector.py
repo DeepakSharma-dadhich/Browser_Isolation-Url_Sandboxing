@@ -44,6 +44,23 @@ def safe_page_title(
         return None
 
 
+def safe_dom_text(
+    page: Page,
+    max_length: int = 50000,
+) -> str:
+    """
+    Safely extract rendered text content from the DOM body for heuristic analysis.
+    """
+
+    try:
+        text = page.evaluate("() => document.body ? (document.body.innerText || '') : ''")
+        if isinstance(text, str):
+            return text[:max_length]
+        return ""
+    except Exception:
+        return ""
+
+
 def collect_metadata(
     page: Page,
     requested_url: str,
@@ -91,6 +108,7 @@ def collect_metadata(
         "response_url": response_url,
         "final_url": final_url,
         "page_title": safe_page_title(page),
+        "dom_text": safe_dom_text(page),
         "status_code": status_code,
         "status_text": status_text,
         "response_headers": safe_response_headers(

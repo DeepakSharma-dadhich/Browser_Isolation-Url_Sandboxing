@@ -136,6 +136,12 @@ def evaluate_target(url: str) -> tuple[bool, str | None, list[str]]:
     # Strip enclosing brackets for IPv6 literals
     clean_host = hostname.strip("[]")
 
+    # Safe In-Lab Simulation Detonation Exception
+    path = parsed.path or ""
+    port = parsed.port or (443 if scheme == "https" else 80)
+    if (clean_host in {"localhost", "127.0.0.1"} and port == 3000 and path.startswith("/api/v1/simulations")):
+        return False, None, [clean_host]
+
     # 1. Direct Cloud Metadata & Internal Hostnames Check
     if clean_host in METADATA_AND_INTERNAL_HOSTS:
         return True, f"BLOCKED_INTERNAL_HOST: {clean_host}", [clean_host]

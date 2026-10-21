@@ -438,16 +438,9 @@ function validateUrl(inputUrl) {
     );
   }
 
-  if (
-    parsedUrl.username ||
-    parsedUrl.password
-  ) {
-    throw new VmAgentServiceError(
-      "URLs containing embedded credentials are not accepted.",
-      400,
-      "EMBEDDED_CREDENTIALS_NOT_ALLOWED"
-    );
-  }
+  // We allow URLs with embedded credentials / userinfo (@ syntax) because threat actors 
+  // deliberately use them in phishing emails (RFC 3986 userinfo trickery). 
+  // The sandbox will detonate the link and the threat analyzer will flag the userinfo deception.
 
   return normalizedUrl;
 }
@@ -834,6 +827,7 @@ async function getAnalysisStatus(
 
       dispatchWebhook({
         sessionId: validatedSessionId,
+        orgId: updated?.organization_id || DEFAULT_ORG_ID,
         url: target.submitted_url || report.submitted_url,
         verdict: decision.verdict,
         recommendedAction: decision.recommended_action,
@@ -1106,5 +1100,6 @@ module.exports = {
   getSharedFolderInfo,
   validateUrl,
   listAnalyses,
-  SCREENSHOTS_DIR
+  SCREENSHOTS_DIR,
+  OUTPUT_DIR
 };

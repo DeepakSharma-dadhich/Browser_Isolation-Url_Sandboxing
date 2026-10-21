@@ -161,10 +161,27 @@ def write_json_atomic(
             json_file.flush()
             os.fsync(json_file.fileno())
 
-        os.replace(
-            temporary_path,
-            file_path,
-        )
+        # Attempt atomic replace with retry for Windows file locks
+        import time
+        replaced = False
+        for attempt in range(4):
+            try:
+                os.replace(temporary_path, file_path)
+                replaced = True
+                break
+            except (PermissionError, OSError):
+                if attempt < 3:
+                    time.sleep(0.05 * (attempt + 1))
+                else:
+                    try:
+                        with open(file_path, "w", encoding="utf-8") as fallback_f:
+                            json.dump(data, fallback_f, indent=indent, ensure_ascii=False, default=str)
+                        replaced = True
+                    except Exception:
+                        pass
+
+        if not replaced and temporary_path.exists():
+            os.replace(temporary_path, file_path)
 
         return file_path
 
@@ -176,5 +193,5 @@ def write_json_atomic(
             pass
 
         raise JSONFileError(
-            f"Unable to write JSON file: {file_path}"
+            f"Unable to write JSON file: {file_path}: {exc}"
         ) from exc

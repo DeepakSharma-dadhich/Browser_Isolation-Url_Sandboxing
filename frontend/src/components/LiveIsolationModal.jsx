@@ -48,16 +48,25 @@ export default function LiveIsolationModal({ initialUrl, onClose }) {
 
     async function initSession() {
       try {
-        setStatus("connecting");
+        const token = localStorage.getItem("bg_jwt_token");
+        const params = new URLSearchParams(window.location.search);
+        const extToken = params.get("ext_token") || params.get("token") || localStorage.getItem("bg_ext_token") || "bg_ext_admin_live_token_777";
+        const authHeaders = token
+          ? { Authorization: `Bearer ${token}` }
+          : { "X-Extension-Token": extToken };
+
         const resp = await fetch("/api/v1/rbi/launch", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders
+          },
           body: JSON.stringify({ url: initialUrl })
         });
 
         if (!resp.ok) {
           const errData = await resp.json().catch(() => ({}));
-          throw new Error(errData.error || `HTTP ${resp.status}`);
+          throw new Error(errData.error?.message || errData.error || `HTTP ${resp.status}`);
         }
 
         const data = await resp.json();
@@ -226,10 +235,28 @@ export default function LiveIsolationModal({ initialUrl, onClose }) {
     }));
   }, [status]);
 
+  const handleBack = () => {
+    if (status === "active" && wsRef.current) {
+      wsRef.current.send(JSON.stringify({ type: "back" }));
+    }
+  };
+
+  const handleForward = () => {
+    if (status === "active" && wsRef.current) {
+      wsRef.current.send(JSON.stringify({ type: "forward" }));
+    }
+  };
+
   const handleNavigateSubmit = (e) => {
     e.preventDefault();
+    let target = (currentUrl || "").trim();
+    if (!target) return;
+    if (!target.startsWith("http://") && !target.startsWith("https://")) {
+      target = "https://" + target;
+      setCurrentUrl(target);
+    }
     if (status === "active" && wsRef.current) {
-      wsRef.current.send(JSON.stringify({ type: "navigate", url: currentUrl }));
+      wsRef.current.send(JSON.stringify({ type: "navigate", url: target }));
     }
   };
 
@@ -291,11 +318,35 @@ export default function LiveIsolationModal({ initialUrl, onClose }) {
         </header>
 
         {/* Browser Nav Address Bar */}
-        <div className="rbi-nav-bar">
-          <button type="button" className="rbi-nav-btn" onClick={handleReload} title="Reload page">
+        <div className="rbi-nav-bar" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <button
+            type="button"
+            className="rbi-nav-btn"
+            onClick={handleBack}
+            title="Go Back"
+            style={{ padding: "4px 10px", fontSize: "0.85rem", cursor: "pointer" }}
+          >
+            ◀
+          </button>
+          <button
+            type="button"
+            className="rbi-nav-btn"
+            onClick={handleForward}
+            title="Go Forward"
+            style={{ padding: "4px 10px", fontSize: "0.85rem", cursor: "pointer" }}
+          >
+            ▶
+          </button>
+          <button
+            type="button"
+            className="rbi-nav-btn"
+            onClick={handleReload}
+            title="Reload page"
+            style={{ padding: "4px 10px", fontSize: "0.85rem", cursor: "pointer" }}
+          >
             🔄
           </button>
-          <form className="rbi-url-form" onSubmit={handleNavigateSubmit}>
+          <form className="rbi-url-form" onSubmit={handleNavigateSubmit} style={{ flex: 1, display: "flex", gap: "6px" }}>
             <input
               type="text"
               className="rbi-url-input"
@@ -304,7 +355,9 @@ export default function LiveIsolationModal({ initialUrl, onClose }) {
               placeholder="Enter destination URL..."
               autoComplete="off"
             />
-            <button type="submit" className="rbi-go-btn">Go</button>
+            <button type="submit" className="rbi-go-btn" style={{ cursor: "pointer", fontWeight: 700 }}>
+              Navigate ➔
+            </button>
           </form>
         </div>
 

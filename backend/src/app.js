@@ -10,8 +10,11 @@ const { WebSocketServer } = require("ws");
 const {
   launchRbiSession,
   bridgeWebSocketConnection,
-  terminateRbiSession
+  terminateRbiSession,
+  isRbiSessionActive
 } = require("./services/rbiManager.service");
+
+const { liveStreamHub } = require("./services/liveStreamHub.service");
 
 const analyzeRoutes = require(
   "./routes/analyze.routes"
@@ -31,6 +34,10 @@ const {
 
 
 const authRoutes = require("./routes/auth.routes");
+const apiKeysRoutes = require("./routes/apiKeys.routes");
+const extensionRoutes = require("./routes/extension.routes");
+const simulationsRoutes = require("./routes/v1/simulations.routes");
+const adminRoutes = require("./routes/admin.routes");
 
 const app = express();
 
@@ -53,25 +60,36 @@ app.use(
     methods: [
       "GET",
       "POST",
+      "PUT",
+      "DELETE",
       "OPTIONS"
     ],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
       "X-API-Key",
+      "X-Client-Secret",
       "X-Extension-Token",
       "X-Organization-Id"
+    ],
+    exposedHeaders: [
+      "X-RateLimit-Limit",
+      "X-RateLimit-Remaining",
+      "X-RateLimit-Reset",
+      "Retry-After",
+      "Content-Type",
+      "Content-Disposition"
     ]
   })
 );
 
 
 /**
- * Limit request size because this API accepts only URL metadata.
+ * Accept JSON payloads up to 10MB to accommodate RFC822 EML MIME and STIX bundles.
  */
 app.use(
   express.json({
-    limit: "32kb"
+    limit: "10mb"
   })
 );
 
@@ -152,16 +170,52 @@ app.use(
 );
 
 /**
- * Remote Browser Isolation (RBI) endpoints
+  * API Keys & Email Gateway link extraction routes.
+  */
+app.use(
+  "/api/v1",
+  apiKeysRoutes
+);
+
+/**
+ * Browser Extension Shield routes (Package download & pairing verification).
  */
-app.post("/api/v1/rbi/launch", async (req, res, next) => {
+app.use(
+  "/api/v1/extension",
+  extensionRoutes
+);
+
+app.use(
+  "/api/v1/simulations",
+  simulationsRoutes
+);
+
+/**
+ * Enterprise Admin Console & Team Management routes.
+ */
+app.use(
+  "/api/v1/admin",
+  adminRoutes
+);
+
+const { authenticateClient } = require("./middleware/auth");
+const { enforceGateway } = require("./middleware/gatewayAuth");
+
+/**
+ * Remote Browser Isolation (RBI) endpoints (Gateway 1: Heavy Browser Sandbox)
+ */
+app.post("/api/v1/rbi/launch", authenticateClient, enforceGateway("url_scanner", { consumeQuota: true }), async (req, res, next) => {
   try {
-    const { url } = req.body || {};
+    const { url, sessionId: reqSessionId } = req.body || {};
     if (!url || typeof url !== "string") {
       return res.status(400).json({ success: false, error: "Valid url is required" });
     }
-    const sessionId = `rbi_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const sessionData = await launchRbiSession({ url, sessionId });
+    const sessionId = reqSessionId || `rbi_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const sessionData = await launchRbiSession({
+      url,
+      sessionId,
+      orgId: req.orgId || req.user?.organizationId
+    });
     return res.status(200).json({
       success: true,
       message: "Remote Browser Isolation session initialized.",
@@ -175,6 +229,19 @@ app.post("/api/v1/rbi/launch", async (req, res, next) => {
 app.post("/api/v1/rbi/:sessionId/terminate", (req, res) => {
   const terminated = terminateRbiSession(req.params.sessionId);
   return res.json({ success: true, terminated });
+});
+
+/**
+ * Live Detonation Screencast fallback endpoint (latest frame buffer).
+ */
+app.get("/api/v1/analyses/:id/live-frame", (req, res) => {
+  const frameBuffer = liveStreamHub.getLatestFrame(req.params.id);
+  if (!frameBuffer) {
+    return res.status(204).end();
+  }
+  res.setHeader("Content-Type", "image/jpeg");
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  return res.send(frameBuffer);
 });
 
 
@@ -275,6 +342,20 @@ async function startServer() {
           const sessionId = pathname.replace("/ws/rbi/", "");
           wss.handleUpgrade(request, socket, head, (ws) => {
             bridgeWebSocketConnection(ws, sessionId);
+          });
+        } else if (pathname.startsWith("/ws/live/")) {
+          const sessionId = pathname.replace("/ws/live/", "");
+          wss.handleUpgrade(request, socket, head, (ws) => {
+            if (isRbiSessionActive(sessionId)) {
+              bridgeWebSocketConnection(ws, sessionId);
+            } else {
+              liveStreamHub.subscribeClient(ws, sessionId);
+            }
+          });
+        } else if (pathname.startsWith("/ws/ingest/")) {
+          const sessionId = pathname.replace("/ws/ingest/", "");
+          wss.handleUpgrade(request, socket, head, (ws) => {
+            liveStreamHub.registerPublisher(ws, sessionId);
           });
         } else {
           socket.destroy();

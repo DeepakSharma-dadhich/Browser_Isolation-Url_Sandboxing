@@ -12,6 +12,8 @@ function getPythonPath() {
   return venvPython;
 }
 
+const { query } = require("../config/db");
+
 function getRbiScriptPath() {
   return path.resolve(__dirname, "../../../vm-agent/rbi_server.py");
 }
@@ -19,7 +21,7 @@ function getRbiScriptPath() {
 /**
  * Launch an on-demand isolated Remote Browser Isolation (RBI) session.
  */
-async function launchRbiSession({ url, sessionId }) {
+async function launchRbiSession({ url, sessionId, recordEvidence = true }) {
   const existing = activeSessions.get(sessionId);
   if (existing && existing.alive) {
     return {
@@ -29,17 +31,40 @@ async function launchRbiSession({ url, sessionId }) {
     };
   }
 
+  // Pre-insert analysis record into PostgreSQL so it can be queried by API / frontend
+  try {
+    const DEFAULT_ORG_ID = "00000000-0000-0000-0000-000000000001";
+    await query(
+      `INSERT INTO analyses (id, organization_id, submitted_url, status, created_at, started_at)
+       VALUES ($1, $2, $3, 'RUNNING', NOW(), NOW())
+       ON CONFLICT (id) DO UPDATE SET status = 'RUNNING', started_at = NOW()`,
+      [sessionId, DEFAULT_ORG_ID, url]
+    );
+  } catch (err) {
+    console.warn("[BrowseGuard RBI] Note on pre-insert analysis:", err.message);
+  }
+
   const port = nextPort++;
   if (nextPort > 9350) nextPort = 9225;
 
   const pythonExec = getPythonPath();
   const scriptPath = getRbiScriptPath();
 
-  console.log(`[BrowseGuard RBI] Spawning isolated browser on port ${port} for URL: ${url}`);
+  console.log(`[BrowseGuard RBI] Spawning interactive browser on port ${port} for session: ${sessionId} (URL: ${url})`);
+
+  const spawnArgs = [
+    scriptPath,
+    "--url", url,
+    "--port", String(port),
+    "--session-id", sessionId
+  ];
+  if (recordEvidence) {
+    spawnArgs.push("--save-report");
+  }
 
   const child = spawn(
     pythonExec,
-    [scriptPath, "--url", url, "--port", String(port)],
+    spawnArgs,
     {
       cwd: path.resolve(__dirname, "../../../vm-agent"),
       env: {
@@ -69,9 +94,16 @@ async function launchRbiSession({ url, sessionId }) {
 
   child.on("exit", (code) => {
     console.log(`[RBI Worker ${sessionId.slice(0, 8)}] Exited with code ${code}`);
+    if (sessionRecord.reaper) clearTimeout(sessionRecord.reaper);
     sessionRecord.alive = false;
     activeSessions.delete(sessionId);
   });
+
+  // Safety reaper: terminate abandoned interactive sessions after 3 minutes
+  sessionRecord.reaper = setTimeout(() => {
+    console.log(`[BrowseGuard RBI] Reaping idle/abandoned session: ${sessionId}`);
+    terminateRbiSession(sessionId);
+  }, 180000);
 
   // Wait for the Python WebSocket server to be ready
   let ready = false;
@@ -161,8 +193,14 @@ function terminateRbiSession(sessionId) {
   return false;
 }
 
+function isRbiSessionActive(sessionId) {
+  const session = activeSessions.get(sessionId);
+  return Boolean(session && session.alive);
+}
+
 module.exports = {
   launchRbiSession,
   bridgeWebSocketConnection,
-  terminateRbiSession
+  terminateRbiSession,
+  isRbiSessionActive
 };

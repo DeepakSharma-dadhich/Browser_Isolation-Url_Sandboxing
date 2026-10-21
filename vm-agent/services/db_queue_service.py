@@ -81,7 +81,9 @@ class DbQueueService:
         self,
         session_id: str,
         report: dict[str, Any],
-        screenshot_path: Path | str | None = None
+        screenshot_path: Path | str | None = None,
+        har_path: Path | str | None = None,
+        dom_path: Path | str | None = None,
     ) -> bool:
         """
         Atomically persist report, findings, redirect events, and artifacts to PostgreSQL.
@@ -208,7 +210,8 @@ class DbQueueService:
                             )
                         )
 
-                    # 4. Insert Screenshot Artifact
+                    # 4. Insert Artifacts (Screenshot, HAR Network Stream, DOM Snapshot)
+                    cur.execute("DELETE FROM artifact_records WHERE analysis_id = %s;", (session_id,))
                     if screenshot_path and os.path.exists(str(screenshot_path)):
                         p = Path(screenshot_path)
                         cur.execute(
@@ -222,6 +225,38 @@ class DbQueueService:
                                 p.name,
                                 str(p),
                                 p.stat().st_size
+                            )
+                        )
+
+                    if har_path and os.path.exists(str(har_path)):
+                        hp = Path(har_path)
+                        cur.execute(
+                            """
+                            INSERT INTO artifact_records (
+                                analysis_id, artifact_type, file_name, storage_path, mime_type, size_bytes
+                            ) VALUES (%s, 'HAR_LOG', %s, %s, 'application/json', %s);
+                            """,
+                            (
+                                session_id,
+                                hp.name,
+                                str(hp),
+                                hp.stat().st_size
+                            )
+                        )
+
+                    if dom_path and os.path.exists(str(dom_path)):
+                        dp = Path(dom_path)
+                        cur.execute(
+                            """
+                            INSERT INTO artifact_records (
+                                analysis_id, artifact_type, file_name, storage_path, mime_type, size_bytes
+                            ) VALUES (%s, 'DOM_SNAPSHOT', %s, %s, 'text/html', %s);
+                            """,
+                            (
+                                session_id,
+                                dp.name,
+                                str(dp),
+                                dp.stat().st_size
                             )
                         )
 

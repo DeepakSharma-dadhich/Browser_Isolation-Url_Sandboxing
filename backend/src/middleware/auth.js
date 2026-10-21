@@ -1,9 +1,146 @@
 "use strict";
 
+const crypto = require("crypto");
+const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { pool } = require("../config/db");
 const { DEFAULT_ORG_ID } = require("../services/analysisRepository");
 const { JWT_SECRET } = require("../services/auth.service");
+
+/**
+ * Cryptographically verify client secret against stored hash.
+ * Supports:
+ *  1. bcrypt hashes ($2a$, $2b$, $2y$)
+ *  2. SHA-256 hashes (hex)
+ *  3. Plaintext legacy fallback (for default seed records)
+ */
+async function verifyClientSecret(providedSecret, storedHash) {
+  if (!providedSecret || !storedHash) return false;
+  if (storedHash.startsWith("$2a$") || storedHash.startsWith("$2b$") || storedHash.startsWith("$2y$")) {
+    return await bcrypt.compare(providedSecret, storedHash);
+  }
+  const sha256 = crypto.createHash("sha256").update(providedSecret).digest("hex");
+  if (sha256 === storedHash) {
+    return true;
+  }
+  return providedSecret === storedHash;
+}
+
+/**
+ * In-memory sliding-window request tracker.
+ * Map<key, number[]> where key is client_id (or IP/userId) and values are millisecond timestamps.
+ */
+const rateLimitBuckets = new Map();
+
+// Periodic prune every 2 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, timestamps] of rateLimitBuckets.entries()) {
+    const valid = timestamps.filter((t) => now - t < 120000);
+    if (valid.length === 0) {
+      rateLimitBuckets.delete(key);
+    } else {
+      rateLimitBuckets.set(key, valid);
+    }
+  }
+}, 120000).unref();
+
+/**
+ * Sliding-window rate limiter per client_id / IP.
+ * @param {Object} options { windowMs: 60000, max: 60 }
+ */
+function rateLimitApiClient(options = {}) {
+  const windowMs = options.windowMs || 60000;
+  const max = options.max || 60;
+
+  return function (req, res, next) {
+    const key = (req.apiClient && req.apiClient.client_id)
+      || (req.headers["x-api-key"])
+      || (req.user && `usr_${req.user.id}`)
+      || req.ip
+      || "global";
+
+    const now = Date.now();
+    let timestamps = rateLimitBuckets.get(key) || [];
+    // Keep timestamps in the active window
+    const windowStart = now - windowMs;
+    timestamps = timestamps.filter((t) => t > windowStart);
+
+    const count = timestamps.length;
+    const remaining = Math.max(0, max - count - 1);
+
+    res.setHeader("X-RateLimit-Limit", max);
+    res.setHeader("X-RateLimit-Remaining", remaining);
+    res.setHeader("X-RateLimit-Reset", Math.ceil((now + windowMs) / 1000));
+
+    if (count >= max) {
+      const oldest = timestamps[0] || now;
+      const retryAfter = Math.max(1, Math.ceil((oldest + windowMs - now) / 1000));
+      res.setHeader("Retry-After", retryAfter);
+      return res.status(429).json({
+        error: "API_RATE_LIMIT_EXCEEDED",
+        message: `Too many requests for client '${key}'. Limit is ${max} requests per ${windowMs / 1000}s.`,
+        limit: max,
+        remaining: 0,
+        retryAfterSeconds: retryAfter
+      });
+    }
+
+    timestamps.push(now);
+    rateLimitBuckets.set(key, timestamps);
+    return next();
+  };
+}
+
+/**
+ * Scope alias map for interchangeable permission names.
+ */
+const SCOPE_ALIASES = {
+  "analysis:create": ["analysis:create", "scans:submit", "analyses:create", "scans:create"],
+  "scans:submit": ["analysis:create", "scans:submit", "analyses:create", "scans:create"],
+  "analysis:read": ["analysis:read", "scans:read", "analyses:read"],
+  "scans:read": ["analysis:read", "scans:read", "analyses:read"],
+  "email:detonate": ["email:detonate", "analysis:create"],
+  "integrations:manage": ["integrations:manage", "admin"],
+  "webhooks:manage": ["webhooks:manage", "admin"]
+};
+
+/**
+ * Require one or more scopes for API Client access.
+ * If accessed via web dashboard user session or extension, permission is automatically granted.
+ * @param {string|string[]} requiredScopes
+ */
+function requireScope(requiredScopes) {
+  const scopesList = Array.isArray(requiredScopes) ? requiredScopes : [requiredScopes];
+
+  return function (req, res, next) {
+    // If request is from an API client, strictly enforce assigned scopes
+    if (req.apiClient) {
+      const clientScopes = req.apiClient.scopes || [];
+
+      // Wildcard / admin scope has all privileges
+      if (clientScopes.includes("*") || clientScopes.includes("admin")) {
+        return next();
+      }
+
+      const hasPermission = scopesList.some((reqScope) => {
+        const acceptableScopes = SCOPE_ALIASES[reqScope] || [reqScope];
+        return acceptableScopes.some((sc) => clientScopes.includes(sc));
+      });
+
+      if (!hasPermission) {
+        return res.status(403).json({
+          error: "INSUFFICIENT_SCOPE",
+          message: `API client '${req.apiClient.client_id}' lacks required permission: ${scopesList.join(", ")}`,
+          requiredScopes: scopesList,
+          grantedScopes: clientScopes
+        });
+      }
+    }
+
+    return next();
+  };
+}
 
 /**
  * Universal Multi-Gateway Authentication Middleware.
@@ -17,8 +154,23 @@ async function authenticateClient(req, res, next) {
   try {
     let authHeader = req.headers["authorization"] || "";
     let bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
-    let apiKey = req.headers["x-api-key"] || null;
-    let extToken = req.headers["x-extension-token"] || null;
+    let apiKey = req.headers["x-api-key"] || req.headers["x-client-id"] || req.query?.api_key || null;
+    let clientSecret = req.headers["x-client-secret"] || req.headers["x-api-secret"] || null;
+    let extToken = req.headers["x-extension-token"] || req.query?.ext_token || req.query?.token || null;
+
+    // HTTP Basic Auth parsing (e.g. Authorization: Basic base64(client_id:client_secret))
+    if (authHeader.startsWith("Basic ")) {
+      try {
+        const decoded = Buffer.from(authHeader.slice(6).trim(), "base64").toString("utf-8");
+        const colonIdx = decoded.indexOf(":");
+        if (colonIdx > 0) {
+          apiKey = decoded.slice(0, colonIdx).trim();
+          clientSecret = decoded.slice(colonIdx + 1).trim();
+        }
+      } catch {
+        // Ignore malformed Basic Auth and continue to next authenticators
+      }
+    }
 
     // 1. Check if token is an extension token
     if (bearerToken && bearerToken.startsWith("bg_ext_")) {
@@ -66,7 +218,7 @@ async function authenticateClient(req, res, next) {
     // B. Authenticate API Key (Email Gateway / Programmatic API)
     if (apiKey) {
       const clientRes = await pool.query(
-        `SELECT id, organization_id, name, client_id, scopes, is_active
+        `SELECT id, organization_id, name, client_id, client_secret_hash, scopes, is_active
          FROM api_clients
          WHERE client_id = $1 AND is_active = TRUE`,
         [apiKey]
@@ -80,7 +232,29 @@ async function authenticateClient(req, res, next) {
       }
 
       const client = clientRes.rows[0];
-      req.apiClient = client;
+      let secretVerified = false;
+
+      // If client secret is provided, verify it cryptographically
+      if (clientSecret) {
+        const isMatch = await verifyClientSecret(clientSecret, client.client_secret_hash);
+        if (!isMatch) {
+          return res.status(401).json({
+            error: "INVALID_CLIENT_SECRET",
+            message: "The provided client secret is incorrect for this API key."
+          });
+        }
+        secretVerified = true;
+      }
+
+      req.apiClient = {
+        id: client.id,
+        organization_id: client.organization_id,
+        name: client.name,
+        client_id: client.client_id,
+        scopes: client.scopes || [],
+        is_active: client.is_active,
+        secretVerified
+      };
       req.orgId = client.organization_id;
       req.sourceChannel = "EMAIL_SECURITY";
 
@@ -101,7 +275,7 @@ async function authenticateClient(req, res, next) {
         req.orgId = decoded.orgId || DEFAULT_ORG_ID;
         req.sourceChannel = "MANUAL";
         return next();
-      } catch (jwtErr) {
+      } catch {
         return res.status(401).json({
           error: "TOKEN_EXPIRED_OR_INVALID",
           message: "Your login session has expired or is invalid. Please log in again."
@@ -150,8 +324,69 @@ function requireApiKey(req, res, next) {
   return next();
 }
 
+/**
+ * Require client secret verification strictly (for sensitive M2M endpoints).
+ */
+function requireClientSecret(req, res, next) {
+  if (!req.apiClient) {
+    return res.status(401).json({
+      error: "API_KEY_REQUIRED",
+      message: "An API client credential is required for this endpoint."
+    });
+  }
+  if (!req.apiClient.secretVerified) {
+    return res.status(401).json({
+      error: "CLIENT_SECRET_REQUIRED",
+      message: "This endpoint requires client secret verification via 'X-Client-Secret' header or HTTP Basic Auth."
+    });
+  }
+  return next();
+}
+
+/**
+ * Require specific user role (e.g. 'ADMIN', 'ANALYST').
+ */
+function requireRole(allowedRoles) {
+  const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
+  return function (req, res, next) {
+    if (!req.user) {
+      return res.status(401).json({
+        error: "AUTHENTICATION_REQUIRED",
+        message: "You must be logged in to access this resource."
+      });
+    }
+    const userRole = (req.user.role || "ANALYST").toUpperCase();
+    if (!roles.map((r) => r.toUpperCase()).includes(userRole)) {
+      return res.status(403).json({
+        error: "FORBIDDEN",
+        message: `Access denied. Requires one of the following roles: ${roles.join(", ")}. Current role: ${userRole}.`
+      });
+    }
+    return next();
+  };
+}
+
+/**
+ * Prevent read-only VIEWER role from executing state-mutating scan detonations.
+ */
+function restrictViewer(req, res, next) {
+  if (req.user && req.user.role && req.user.role.toUpperCase() === "VIEWER") {
+    return res.status(403).json({
+      error: "FORBIDDEN",
+      message: "Read-only access: Viewers cannot trigger URL scans or sandbox detonations."
+    });
+  }
+  return next();
+}
+
 module.exports = {
   authenticateClient,
   requireUserAuth,
-  requireApiKey
+  requireRole,
+  restrictViewer,
+  requireApiKey,
+  requireClientSecret,
+  requireScope,
+  rateLimitApiClient,
+  verifyClientSecret
 };

@@ -21,6 +21,26 @@
       </div>
     </header>
 
+    <!-- Scope & Mode Bar -->
+    <div id="offlineBanner" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; padding: 6px 10px; font-size: 11px; color: #fca5a5; margin-bottom: 8px;">
+      ⚠️ Control plane disconnected (localhost:3000 offline)
+    </div>
+
+    <div style="background: rgba(0, 172, 245, 0.08); border: 1px solid rgba(0, 172, 245, 0.25); border-radius: 8px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between;">
+      <div>
+        <div style="font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;">Protection Mode</div>
+        <div id="modeLabel" style="font-size: 12px; font-weight: 700; color: #38bdf8; margin-top: 2px;">📧 Webmail Shield (0ms Lag)</div>
+      </div>
+      <button id="toggleModeBtn" style="background: #1e293b; color: #cbd5e1; border: 1px solid #334155; font-size: 11px; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+        Switch
+      </button>
+    </div>
+
+    <div style="font-size: 11px; color: #34d399; display: flex; align-items: center; gap: 6px; padding: 0 2px;">
+      <span>⚡</span>
+      <span>0ms Fast Whitelist Active (300+ Domains)</span>
+    </div>
+
     <!-- Protection Stats -->
     <div class="stats-grid">
       <div class="stat-box">
@@ -48,15 +68,19 @@
           <span class="result-score" id="resultScore">Score: 100/100</span>
         </div>
         <p class="result-action" id="resultAction">Action: BLOCK</p>
-        <a id="resultLink" class="result-view-btn" href="#" target="_blank">View Forensic Report</a>
+        <p class="result-reason" id="resultReason" style="font-size: 11.5px; color: #cbd5e1; margin-top: 6px; line-height: 1.4; word-break: break-word;"></p>
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <a id="resultRbiLink" class="result-rbi-btn hidden" href="#" target="_blank">⚡ Isolated Browser</a>
+          <a id="resultLink" class="result-view-btn" href="#" target="_blank">Forensic Report</a>
+        </div>
       </div>
     </div>
 
     <!-- Footer Actions -->
     <footer class="popup-footer">
-      <a href="http://localhost:5173" target="_blank" class="footer-link">Live Dashboard</a>
+      <a href="http://localhost:5173" target="_blank" class="footer-link">Live SOC Dashboard</a>
       <span class="separator">•</span>
-      <a href="../options/options.html" target="_blank" class="footer-link">Settings</a>
+      <a href="../options/options.html" target="_blank" class="footer-link">Settings & Whitelist</a>
     </footer>
   </div>
 

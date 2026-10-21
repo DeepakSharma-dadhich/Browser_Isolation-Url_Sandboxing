@@ -398,6 +398,9 @@ def persist_browser_evidence(
             paths.metadata_dir
             / "dialogs.json"
         ),
+        "auto_interaction": (
+            paths.metadata_dir / "auto_interaction.json"
+        ),
         "navigation_error": (
             paths.errors_dir
             / "navigation_error.json"

@@ -228,6 +228,7 @@ body {
 
 .result-view-btn {
   display: block;
+  flex: 1;
   text-align: center;
   background: #1e293b;
   color: #38bdf8;
@@ -241,6 +242,25 @@ body {
 
 .result-view-btn:hover {
   background: #334155;
+}
+
+.result-rbi-btn {
+  display: block;
+  flex: 1;
+  text-align: center;
+  background: linear-gradient(135deg, #00e5ff 0%, #0284c7 100%);
+  color: #071020;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 229, 255, 0.3);
+}
+
+.result-rbi-btn:hover {
+  filter: brightness(1.15);
 }
 
 /* Footer */

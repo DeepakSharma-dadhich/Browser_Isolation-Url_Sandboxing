@@ -306,7 +306,9 @@ async function getAnalysisById(sessionId) {
             'category', f.category,
             'severity', f.severity,
             'score', f.score_contribution,
-            'evidence', f.evidence
+            'evidence', f.evidence,
+            'mitre_attack_id', f.mitre_attack_id,
+            'mitre_attack_name', f.mitre_attack_name
           )
         ) FILTER (WHERE f.id IS NOT NULL),
         '[]'

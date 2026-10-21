@@ -33,9 +33,12 @@ DOM_EXTRACT_SCRIPTS_SCRIPT = """
     let hasPackedCode = false;
     let hasAntiDebug = false;
     let hasCryptoMinerKeywords = false;
+    let hasClipboardHijack = false;
+    const suspiciousClipboardSnippets = [];
     let totalInlineLength = 0;
 
-    const minerPatterns = ['coinhive', 'cryptoloot', 'coin-hive', 'minr', 'webminer'];
+    const minerPatterns = ['coinhive.min.js', 'coinhive.anonymous', 'cryptoloot.token', 'crypto-loot.com', 'coin-hive.com', 'webminepool', 'monerominer', 'deepminer', 'authedmine'];
+    const cmdKeywords = ['powershell', 'cmd.exe', 'cmd /c', 'mshta', 'curl', 'wget', 'certutil', 'invoke-webrequest', 'iwr', 'iex', 'invoke-expression', 'downloadstring', '-w hidden', '-enc '];
 
     for (const s of scripts) {
         const src = s.getAttribute('src');
@@ -59,12 +62,24 @@ DOM_EXTRACT_SCRIPTS_SCRIPT = """
             if (content.includes('new Function(') || content.includes('Function(')) hasFunctionConstructor = true;
             if (content.includes('atob(') || content.includes('btoa(')) hasAtob = true;
             if (content.includes('p,a,c,k,e,d') || content.includes('p,a,c,k,e,r')) hasPackedCode = true;
-            if (content.includes('debugger') || content.includes('oncontextmenu') || content.includes('preventDefault')) hasAntiDebug = true;
+            if (content.includes('debugger') || content.includes('oncontextmenu = function') || content.includes('oncontextmenu = () =>')) hasAntiDebug = true;
 
             for (const pat of minerPatterns) {
                 if (lower.includes(pat)) {
                     hasCryptoMinerKeywords = true;
                     break;
+                }
+            }
+
+            // Detect malicious clipboard manipulation (ClickFix / paste cradle lures)
+            if (lower.includes('clipboard.writetext') || lower.includes("execcommand('copy')") || lower.includes('execcommand("copy")')) {
+                for (const cmd of cmdKeywords) {
+                    if (lower.includes(cmd)) {
+                        hasClipboardHijack = true;
+                        if (!suspiciousClipboardSnippets.includes(cmd)) {
+                            suspiciousClipboardSnippets.push(cmd);
+                        }
+                    }
                 }
             }
         }
@@ -83,7 +98,9 @@ DOM_EXTRACT_SCRIPTS_SCRIPT = """
             has_atob: hasAtob,
             has_packed_code: hasPackedCode,
             has_anti_debug: hasAntiDebug,
-            has_crypto_miner_keywords: hasCryptoMinerKeywords
+            has_crypto_miner_keywords: hasCryptoMinerKeywords,
+            has_clipboard_hijack: hasClipboardHijack,
+            suspicious_clipboard_snippets: suspiciousClipboardSnippets
         }
     };
 }
@@ -152,6 +169,8 @@ def collect_javascript(
         suspicious_signals.append("Potential in-browser cryptocurrency miner keywords observed.")
     if indicators.get("has_anti_debug"):
         suspicious_signals.append("Anti-debugging or context-menu suppression pattern observed.")
+    if indicators.get("has_clipboard_hijack"):
+        suspicious_signals.append("Malicious clipboard hijacking payload detected (command shell / download cradle copied to clipboard).")
 
     return {
         "collected_at": utc_now_iso(),

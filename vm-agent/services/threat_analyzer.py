@@ -38,6 +38,23 @@ except ImportError:
         detect_high_abuse_tld,
     )
 
+try:
+    from services.advanced_heuristics import (
+        detect_clickfix_lure,
+        detect_oauth_device_phishing,
+        detect_tech_support_scareware,
+        detect_fake_browser_update,
+        detect_clipboard_hijacking,
+    )
+except ImportError:
+    from advanced_heuristics import (
+        detect_clickfix_lure,
+        detect_oauth_device_phishing,
+        detect_tech_support_scareware,
+        detect_fake_browser_update,
+        detect_clipboard_hijacking,
+    )
+
 
 MAX_RISK_SCORE = 100
 
@@ -89,6 +106,17 @@ MITRE_ATTACK_MAPPING = {
     "NAV-001": ("T1204.001", "User Execution: Malicious Link Navigation"),
     "REDIR-001": ("T1566.002", "Spearphishing Link: Evasive Client Redirect"),
     "COOKIE-001": ("T1539", "Steal Web Session Cookie"),
+    "CLOAK-001": ("T1027", "Obfuscated/Cloaked Files: Anti-Analysis Gate Bypassed"),
+    "CLOAK-002": ("T1204.001", "User Execution: Interactive Document Lure Redirect"),
+    "CLICKFIX-001": ("T1204.002", "User Execution: Fake CAPTCHA / PowerShell Paste Lure"),
+    "OAUTH-001": ("T1528", "Steal Application Access Token: Device Authorization Phishing"),
+    "SCARED-001": ("T1204.001", "User Execution: Tech Support Scam / Fake Security Lockout"),
+    "UPDATE-001": ("T1189", "Drive-by Compromise: Fake Browser Update Lure"),
+    "CLIP-001": ("T1115", "Clipboard Data: Malicious Clipboard Hijacking"),
+    "JS-001": ("T1027", "Obfuscated Files: Packed Script"),
+    "JS-002": ("T1496", "Resource Hijacking: Cryptocurrency Mining"),
+    "JS-003": ("T1622", "Debugger Evasion: Anti-Analysis Protections"),
+    "USERINFO-001": ("T1566.002", "Spearphishing Link: Userinfo / Credential Trickery"),
 }
 
 
@@ -171,7 +199,35 @@ def get_file_extension(
     if "." not in last_part:
         return ""
 
-    return "." + last_part.rsplit(".", 1)[-1]
+BRAND_FAMILIES = [
+    {"microsoft.com", "live.com", "office.com", "office365.com", "bing.com", "msn.com", "outlook.com", "azure.com", "windows.net", "sharepoint.com", "skype.com"},
+    {"google.com", "google.de", "google.co.uk", "google.fr", "google.co.in", "google.it", "google.ru", "google.es", "google.com.br", "youtube.com", "gmail.com", "blogger.com", "blogspot.com", "googleusercontent.com"},
+    {"vk.com", "vk.ru", "vk.me", "vkontakte.ru", "mail.ru"},
+    {"facebook.com", "instagram.com", "whatsapp.com", "meta.com", "fb.com"},
+    {"yahoo.com", "yahoo.co.jp", "yahoofinance.com", "aol.com"},
+    {"apple.com", "icloud.com"},
+    {"amazon.com", "amazon.co.uk", "amazon.de", "amazon.co.jp", "amazon.in", "amazon.fr", "amazon.it", "amazon.es", "amazon.ca", "primevideo.com", "media-amazon.com"},
+    {"taobao.com", "tmall.com", "alibaba.com", "aliexpress.com", "alipay.com"},
+    {"baidu.com", "hao123.com"},
+    {"weibo.com", "sina.com.cn", "sina.cn"},
+    {"reddit.com", "redd.it", "redditstatic.com"},
+    {"ebay.com", "ebay.co.uk", "ebay.de"},
+    {"tumblr.com", "wordpress.com", "wp.com", "gravatar.com", "automattic.com"},
+    {"pinterest.com", "pinimg.com"},
+]
+
+
+def is_same_brand_family(host1: str | None, host2: str | None) -> bool:
+    if not host1 or not host2:
+        return False
+    h1 = host1.lower().removeprefix("www.")
+    h2 = host2.lower().removeprefix("www.")
+    for family in BRAND_FAMILIES:
+        h1_match = any(h1 == f or h1.endswith("." + f) for f in family)
+        h2_match = any(h2 == f or h2.endswith("." + f) for f in family)
+        if h1_match and h2_match:
+            return True
+    return False
 
 
 def analyze_navigation(
@@ -241,8 +297,8 @@ def analyze_navigation(
                         "The browser encountered an error while "
                         "opening the submitted URL."
                     ),
-                    severity="medium",
-                    score=10,
+                    severity="low",
+                    score=5,
                     evidence=navigation_error,
                 )
             )
@@ -259,56 +315,68 @@ def analyze_navigation(
         )
         or 0
     )
+    domain_change_count = int(
+        redirects.get(
+            "domain_change_count",
+            0,
+        )
+        or 0
+    )
 
-    if redirect_count >= 10:
+    # Only flag as suspicious redirect evasion if the chain jumps across distinct external domains
+    if redirect_count >= 10 and domain_change_count >= 2:
         findings.append(
             create_finding(
                 finding_id="RED-001",
                 category="redirect",
-                title="Long redirect chain",
+                title="Long redirect chain across multiple domains",
                 description=(
-                    "The URL produced a large redirect chain, which "
-                    "can be used to hide the final destination."
+                    "The URL produced a large redirect chain bouncing across "
+                    "multiple distinct domains, indicative of evasive routing."
                 ),
                 severity="high",
                 score=20,
                 evidence={
                     "redirect_count": redirect_count,
+                    "domain_change_count": domain_change_count,
                 },
             )
         )
 
-    elif redirect_count >= 5:
+    elif redirect_count >= 5 and domain_change_count >= 1:
         findings.append(
             create_finding(
                 finding_id="RED-002",
                 category="redirect",
-                title="Multiple redirects",
+                title="Multiple cross-domain redirects",
                 description=(
-                    "The URL passed through several redirect targets "
-                    "before reaching the final page."
+                    "The URL passed through several redirect targets across "
+                    "different domains before reaching the final page."
                 ),
                 severity="medium",
                 score=10,
                 evidence={
                     "redirect_count": redirect_count,
+                    "domain_change_count": domain_change_count,
                 },
             )
         )
 
-    elif redirect_count >= 3:
+    elif redirect_count >= 12:
+        # High volume of redirects even on same domain
         findings.append(
             create_finding(
                 finding_id="RED-003",
                 category="redirect",
-                title="Redirect chain observed",
+                title="Excessive internal redirect loop",
                 description=(
-                    "The submitted URL redirected multiple times."
+                    "The submitted URL redirected more than 12 times internally."
                 ),
                 severity="low",
                 score=5,
                 evidence={
                     "redirect_count": redirect_count,
+                    "domain_change_count": domain_change_count,
                 },
             )
         )
@@ -348,11 +416,56 @@ def analyze_url_transition(
         final_url
     )
 
+    req_norm = (requested_hostname or "").lower().removeprefix("www.")
+    fin_norm = (final_hostname or "").lower().removeprefix("www.")
+    
+    # Internal browser error pages or offline network errors are NOT malicious domain changes
+    is_internal_error_page = (
+        fin_norm in ("chromewebdata", "about:blank", "localhost")
+        or (final_url and (final_url.startswith("chrome-error:") or final_url.startswith("about:")))
+    )
+
+    # Check for embedded credentials or deceptive userinfo trickery (@ syntax in URL)
+    if requested_url:
+        try:
+            parsed_req = urlsplit(requested_url)
+            if parsed_req.username or parsed_req.password:
+                cred_info = parsed_req.username or ""
+                if parsed_req.password:
+                    cred_info += f":{parsed_req.password}"
+                findings.append(
+                    create_finding(
+                        finding_id="USERINFO-001",
+                        category="phishing",
+                        title="Deceptive URL Structure: Embedded Userinfo / '@' Injection",
+                        description=(
+                            f"The submitted URL uses RFC 3986 userinfo trickery ('{cred_info}@'). "
+                            f"Web browsers ignore text before the '@' symbol and navigate directly to '{parsed_req.hostname}'. "
+                            f"This is a common spearphishing email technique used to disguise malicious destinations as email addresses or trusted brands."
+                        ),
+                        severity="high",
+                        score=60,
+                        evidence={
+                            "userinfo": cred_info,
+                            "true_destination_host": parsed_req.hostname,
+                            "submitted_url": requested_url,
+                        },
+                    )
+                )
+        except Exception:
+            pass
+
+    same_domain = (
+        req_norm == fin_norm
+        or (req_norm and fin_norm and (req_norm.endswith("." + fin_norm) or fin_norm.endswith("." + req_norm)))
+        or is_same_brand_family(requested_hostname, final_hostname)
+    )
+
     if (
         requested_hostname
         and final_hostname
-        and requested_hostname
-        != final_hostname
+        and not same_domain
+        and not is_internal_error_page
     ):
         findings.append(
             create_finding(
@@ -930,13 +1043,12 @@ def analyze_browser_behaviour(
             create_finding(
                 finding_id="BEH-004",
                 category="javascript",
-                title="Multiple JavaScript errors",
+                title="Multiple JavaScript errors observed",
                 description=(
-                    "The page produced several uncaught JavaScript "
-                    "errors during execution."
+                    "The page produced uncaught JavaScript errors during execution (common in complex single-page apps)."
                 ),
-                severity="low",
-                score=5,
+                severity="informational",
+                score=0,
                 evidence={
                     "page_error_count": (
                         page_error_count
@@ -1258,15 +1370,15 @@ def analyze_cookies_and_sessions(
     summary = cookies_data.get("summary", {})
     insecure_on_https = summary.get("insecure_on_https", 0)
 
-    if insecure_on_https >= 3:
+    if insecure_on_https >= 5:
         findings.append(
             create_finding(
                 finding_id="SESS-001",
                 category="session_security",
                 title="Insecure cookies set over HTTPS",
                 description=f"{insecure_on_https} cookies set without the Secure attribute on an HTTPS website.",
-                severity="low",
-                score=5,
+                severity="informational",
+                score=2,
                 evidence={"insecure_cookie_count": insecure_on_https},
             )
         )
@@ -1446,6 +1558,218 @@ def analyze_brand_and_phishing_deception(
         )
 
 
+def analyze_auto_interactivity_and_cloaking(
+    evidence: dict[str, Any],
+    findings: list[dict[str, Any]],
+) -> None:
+    """
+    Analyze automated interaction outcomes and anti-analysis evasion bypasses.
+    """
+    auto_interaction = evidence.get("auto_interaction", {})
+    if not isinstance(auto_interaction, dict):
+        return
+
+    if not auto_interaction.get("interacted"):
+        return
+
+    actions = auto_interaction.get("actions", [])
+    for action in actions:
+        btn_text = action.get("button_text") or "Gate Button"
+        caused_redirect = action.get("caused_redirect", False)
+        lower_btn = btn_text.lower()
+
+        # Only treat as anti-analysis gate if it is an explicit verification/CAPTCHA lure,
+        # or if interacting with it caused a suspicious secondary navigation redirect
+        is_explicit_gate = any(
+            kw in lower_btn
+            for kw in [
+                "turnstile", "robot", "human", "captcha", "verify",
+                "cloudflare", "click-wall", "view document", "open document", "access document"
+            ]
+        )
+
+        if not (is_explicit_gate or caused_redirect):
+            continue
+
+        findings.append(
+            create_finding(
+                finding_id="CLOAK-001",
+                category="evasion",
+                title=f"Anti-Analysis Gate Bypassed: '{btn_text}'",
+                description=(
+                    f"The page presented an interactive click-wall or human verification "
+                    f"lure ('{btn_text}') designed to conceal payloads from static scanners. "
+                    f"The automated interaction engine successfully traversed it."
+                ),
+                severity="high",
+                score=30,
+                evidence=action,
+            )
+        )
+        if action.get("caused_redirect"):
+            findings.append(
+                create_finding(
+                    finding_id="CLOAK-002",
+                    category="evasion",
+                    title="Interactive Lure Triggered Secondary Redirect",
+                    description=(
+                        f"Interacting with '{btn_text}' triggered an evasive navigation "
+                        f"from {action.get('initial_url')} to {action.get('url_after_click')}."
+                    ),
+                    severity="high",
+                    score=25,
+                    evidence=action,
+                )
+            )
+
+
+def analyze_advanced_behavioral_phishing(
+    evidence: dict[str, Any],
+    findings: list[dict[str, Any]],
+) -> None:
+    """
+    Analyze modern behavioral phishing, scareware, and evasive execution lures:
+    1. ClickFix Win+R paste-and-run lure (CLICKFIX-001)
+    2. OAuth device code phishing (OAUTH-001)
+    3. Scareware & tech support lockout scam (SCARED-001)
+    4. Fake browser update lures (UPDATE-001)
+    5. Malicious clipboard hijacking payloads (CLIP-001)
+    """
+    metadata = evidence.get("metadata", {})
+    dom_text = (
+        evidence.get("dom_text")
+        or metadata.get("dom_text")
+        or evidence.get("page_text")
+        or ""
+    )
+    page_title = (
+        metadata.get("page_title")
+        or evidence.get("page_title")
+        or ""
+    )
+    final_url = (
+        metadata.get("final_url")
+        or evidence.get("execution", {}).get("final_url")
+        or evidence.get("requested_url")
+        or ""
+    )
+    javascript_data = evidence.get("javascript", {})
+    downloads_data = evidence.get("downloads", {})
+    dialog_data = evidence.get("dialogs", {})
+    dialog_count = int(dialog_data.get("dialog_count", 0) or 0)
+
+    # 1. ClickFix Fake CAPTCHA / PowerShell Paste Lure
+    clickfix = detect_clickfix_lure(
+        dom_text=dom_text,
+        page_title=page_title,
+        javascript_data=javascript_data,
+    )
+    if clickfix:
+        findings.append(
+            create_finding(
+                finding_id="CLICKFIX-001",
+                category="social_engineering_lure",
+                title="ClickFix Fake CAPTCHA / PowerShell Paste-and-Run Lure",
+                description=(
+                    "The page presents an interactive ClickFix deception disguised as a Cloudflare Turnstile "
+                    "or robot verification lure, instructing the victim to press Win+R, paste clipboard contents (Ctrl+V), "
+                    "and execute malicious shell commands."
+                ),
+                severity="critical",
+                score=50,
+                evidence=clickfix,
+            )
+        )
+
+    # 2. OAuth 2.0 Device Code Authorization Phishing
+    oauth = detect_oauth_device_phishing(
+        dom_text=dom_text,
+        page_title=page_title,
+        final_url=final_url,
+    )
+    if oauth:
+        findings.append(
+            create_finding(
+                finding_id="OAUTH-001",
+                category="credential_phishing",
+                title="OAuth 2.0 Device Authorization Phishing (Device Login Hijack)",
+                description=(
+                    "The page tricks the user into visiting legitimate device login endpoints (e.g., microsoft.com/devicelogin) "
+                    "and entering an attacker-supplied pairing code to hijack tenant access tokens without requiring direct password capture."
+                ),
+                severity="critical",
+                score=45,
+                evidence=oauth,
+            )
+        )
+
+    # 3. Scareware / Tech Support Scam
+    scareware = detect_tech_support_scareware(
+        dom_text=dom_text,
+        page_title=page_title,
+        dialog_count=dialog_count,
+    )
+    if scareware:
+        findings.append(
+            create_finding(
+                finding_id="SCARED-001",
+                category="social_engineering_lure",
+                title="Tech Support Scam / Fake Security Lockout Lure",
+                description=(
+                    "The page generates deceptive scareware warnings impersonating Windows Defender or security software, "
+                    "claiming system compromise and coercing the user into dialing a toll-free fraud helpline."
+                ),
+                severity="high",
+                score=40,
+                evidence=scareware,
+            )
+        )
+
+    # 4. Fake Browser Update Lure (Drive-by / SocGholish)
+    fake_update = detect_fake_browser_update(
+        dom_text=dom_text,
+        page_title=page_title,
+        final_url=final_url,
+        downloads_data=downloads_data,
+    )
+    if fake_update:
+        findings.append(
+            create_finding(
+                finding_id="UPDATE-001",
+                category="social_engineering_lure",
+                title="Fake Browser Update Lure (Drive-by Compromise)",
+                description=(
+                    "The page displays a fraudulent browser update notification on an unauthorized origin "
+                    "urging the user to download an update package (common SocGholish/FakeUpdates malware vector)."
+                ),
+                severity="high",
+                score=35,
+                evidence=fake_update,
+            )
+        )
+
+    # 5. Malicious Clipboard Hijacking Payload
+    clipboard_hijack = detect_clipboard_hijacking(
+        javascript_data=javascript_data,
+        dom_text=dom_text,
+    )
+    if clipboard_hijack:
+        findings.append(
+            create_finding(
+                finding_id="CLIP-001",
+                category="malware_evasion",
+                title="Malicious Clipboard Hijacking Payload",
+                description=(
+                    "Page script executed clipboard write operations (writeText / execCommand) containing command-line "
+                    "interpreter directives, download cradles, or shell commands intended for automated or lured execution."
+                ),
+                severity="critical",
+                score=45,
+                evidence=clipboard_hijack,
+            )
+        )
+
+
 def analyze_threats(
     evidence_or_report: dict[str, Any],
 ) -> dict[str, Any]:
@@ -1529,6 +1853,16 @@ def analyze_threats(
     )
 
     analyze_brand_and_phishing_deception(
+        evidence,
+        findings,
+    )
+
+    analyze_auto_interactivity_and_cloaking(
+        evidence,
+        findings,
+    )
+
+    analyze_advanced_behavioral_phishing(
         evidence,
         findings,
     )

@@ -55,9 +55,11 @@ from services.browser_service import (
 )
 
 from services.network_guard import NetworkGuard
+from services.auto_interactor import perform_automated_interactivity
 from services.decision_engine import make_decision
 from services.report_builder import build_report
 from services.threat_analyzer import analyze_threats
+from services.screencast_streamer import ScreencastStreamer
 
 from session_manager import (
     SessionManager,
@@ -260,6 +262,7 @@ def analyze_url(
     navigation_response: Response | None = None
     collectors: BrowserCollectors | None = None
     network_guard: NetworkGuard | None = None
+    streamer: ScreencastStreamer | None = None
 
     popup_records: list[
         dict[str, Any]
@@ -328,7 +331,10 @@ def analyze_url(
             )
         )
 
+        har_file = paths.network_dir / "traffic.har"
         context = browser.new_context(
+            record_har_path=str(har_file),
+            record_har_mode="minimal",
             accept_downloads=True,
             ignore_https_errors=True,
             java_script_enabled=True,
@@ -336,7 +342,27 @@ def analyze_url(
                 "width": 1366,
                 "height": 768,
             },
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         )
+
+        # Anti-detection stealth mocks to avoid bot detection and Cloudflare lockout
+        context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined
+            });
+            window.chrome = {
+                runtime: {},
+                loadTimes: function() {},
+                csi: function() {},
+                app: {}
+            };
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3, 4, 5]
+            });
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['en-US', 'en']
+            });
+        """)
 
         # Perimeter security: intercept egress & block SSRF / private IP access
         network_guard = NetworkGuard(
@@ -483,6 +509,16 @@ def analyze_url(
         )
 
         try:
+            streamer = ScreencastStreamer(page=page, session_id=session_id)
+            streamer.start()
+            streamer.publish_event("Chromium sandbox initialized and CDP screencast stream active", level="info")
+        except Exception as streamer_err:
+            logger.debug("Failed to initialize screencast streamer: %s", streamer_err)
+
+        if streamer:
+            streamer.publish_event(f"Navigating to {url}...", level="action")
+
+        try:
             navigation_response = page.goto(
                 url,
                 wait_until="domcontentloaded",
@@ -545,6 +581,22 @@ def analyze_url(
                 exc_info=True,
             )
 
+        # Automated interactivity pass to bypass click-walls and anti-analysis lures
+        auto_interaction_data = {
+            "attempted": False,
+            "interacted": False,
+            "actions": [],
+        }
+        if streamer:
+            streamer.publish_event("Simulating human interaction & anti-evasion traversal...", level="action")
+        try:
+            auto_interaction_data = perform_automated_interactivity(page)
+        except Exception as interactor_err:
+            logger.debug(
+                "Automated interactivity execution failed: %s",
+                interactor_err,
+            )
+
         if (
             collectors.redirects
             .redirect_limit_exceeded
@@ -558,6 +610,9 @@ def analyze_url(
                     "exceeded the configured limit."
                 ),
             }
+
+        if streamer:
+            streamer.publish_event("Extracting DOM telemetry, network HAR & screenshot...", level="action")
 
         evidence = collect_browser_evidence(
             page=page,
@@ -576,6 +631,9 @@ def analyze_url(
             dialog_records=dialog_records,
             network_guard=network_guard,
         )
+
+        evidence["auto_interaction"] = auto_interaction_data
+        evidence["har_path"] = str(paths.network_dir / "traffic.har")
 
     except Exception as exc:
         fatal_error = {
@@ -696,6 +754,9 @@ def analyze_url(
                 )
 
         try:
+            if streamer:
+                streamer.publish_event("Evaluating threat heuristics, IOCs & MITRE ATT&CK rules...", level="action")
+
             analysis = analyze_threats(
                 evidence
             )
@@ -807,6 +868,13 @@ def analyze_url(
             logger.exception(
                 "Unable to update final session status."
             )
+
+        if streamer is not None:
+            try:
+                streamer.publish_event("Detonation complete. Releasing sandbox resources...", level="info")
+                streamer.stop()
+            except Exception:
+                pass
 
         close_page_safely(
             page

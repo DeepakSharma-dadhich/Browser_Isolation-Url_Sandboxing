@@ -30,7 +30,9 @@ TARGETED_BRANDS: dict[str, dict[str, Any]] = {
         "keywords": ["google", "gmail", "google drive", "google workspace", "google docs"],
         "legit_domains": [
             "google.com", "gmail.com", "googleapis.com", "googleusercontent.com",
-            "youtube.com", "google.co.uk", "google.co.in", "google.ca"
+            "youtube.com", "google.co.uk", "google.co.in", "google.ca",
+            "google.it", "google.ru", "google.es", "google.de", "google.fr",
+            "google.com.br", "blogger.com", "blogspot.com"
         ]
     },
     "Apple": {
@@ -43,7 +45,11 @@ TARGETED_BRANDS: dict[str, dict[str, Any]] = {
     },
     "Amazon": {
         "keywords": ["amazon", "amazon prime", "aws"],
-        "legit_domains": ["amazon.com", "amazonaws.com", "primevideo.com", "amazon.co.uk"]
+        "legit_domains": [
+            "amazon.com", "amazonaws.com", "primevideo.com", "amazon.co.uk",
+            "amazon.co.jp", "amazon.de", "amazon.fr", "amazon.in", "amazon.it",
+            "amazon.es", "amazon.ca", "amazon.com.au", "amazon.com.br", "amazon.com.mx"
+        ]
     },
     "DocuSign": {
         "keywords": ["docusign"],

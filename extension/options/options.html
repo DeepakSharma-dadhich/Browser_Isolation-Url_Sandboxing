@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>BrowseGuard Shield - Settings</title>
+  <title>BrowseGuard Shield - Enterprise Settings</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: #0b132b;
+      background: #080f20;
       color: #f8fafc;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
       padding: 40px 20px;
@@ -14,18 +14,18 @@
       justify-content: center;
     }
     .options-card {
-      width: 640px;
-      background: #111c44;
-      border: 1px solid #1e293b;
+      width: 680px;
+      background: #0d1730;
+      border: 1px solid rgba(0, 172, 245, 0.25);
       border-radius: 14px;
       padding: 32px;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
     }
     .options-header {
       display: flex;
       align-items: center;
-      gap: 14px;
-      border-bottom: 1px solid #1e293b;
+      gap: 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       padding-bottom: 20px;
       margin-bottom: 24px;
     }
@@ -36,6 +36,19 @@
     .options-header p {
       font-size: 13px;
       color: #94a3b8;
+    }
+    .explainer-box {
+      background: rgba(0, 172, 245, 0.08);
+      border: 1px solid rgba(0, 172, 245, 0.25);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 24px;
+      font-size: 12.5px;
+      color: #bae6fd;
+      line-height: 1.5;
+    }
+    .explainer-box strong {
+      color: #38bdf8;
     }
     .form-group {
       margin-bottom: 20px;
@@ -48,44 +61,85 @@
       margin-bottom: 6px;
     }
     .hint {
-      font-size: 11px;
+      font-size: 11.5px;
       color: #64748b;
       margin-top: 4px;
+      line-height: 1.4;
     }
-    input[type="text"], input[type="password"] {
+    input[type="text"], textarea {
       width: 100%;
-      background: #0b132b;
-      border: 1px solid #334155;
+      background: #080f20;
+      border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 8px;
       padding: 10px 14px;
       color: #ffffff;
-      font-size: 14px;
+      font-size: 13.5px;
       outline: none;
+      transition: border 0.15s ease;
     }
-    input[type="text"]:focus, input[type="password"]:focus {
-      border-color: #00e5ff;
-      box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+    input[type="text"]:focus, textarea:focus {
+      border-color: #00acf5;
+      box-shadow: 0 0 10px rgba(0, 172, 245, 0.25);
     }
-    .checkbox-group {
+    .mode-selector {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .mode-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      background: #091226;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .mode-option:hover {
+      border-color: rgba(0, 172, 245, 0.35);
+    }
+    .mode-option.active {
+      border-color: #00acf5;
+      background: rgba(0, 172, 245, 0.08);
+    }
+    .mode-option input {
+      margin-top: 3px;
+      cursor: pointer;
+    }
+    .mode-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #ffffff;
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-top: 10px;
+      gap: 6px;
     }
-    .checkbox-group input {
-      width: 16px;
-      height: 16px;
-      cursor: pointer;
+    .mode-badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #10b981;
+      color: #022c22;
+      font-weight: 800;
+    }
+    .mode-desc {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 2px;
+      line-height: 1.4;
     }
     .actions {
       display: flex;
       gap: 12px;
       margin-top: 28px;
-      border-top: 1px solid #1e293b;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
       padding-top: 20px;
     }
     button {
-      padding: 10px 20px;
+      padding: 10px 22px;
       border-radius: 8px;
       font-size: 13px;
       font-weight: 600;
@@ -94,11 +148,12 @@
       transition: all 0.15s ease;
     }
     .btn-save {
-      background: #00e5ff;
-      color: #0b132b;
+      background: linear-gradient(135deg, #00acf5 0%, #0284c7 100%);
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(0, 172, 245, 0.35);
     }
     .btn-save:hover {
-      background: #38bdf8;
+      filter: brightness(1.1);
     }
     .btn-test {
       background: #1e293b;
@@ -109,7 +164,7 @@
       background: #334155;
     }
     .status-msg {
-      margin-top: 12px;
+      margin-top: 14px;
       font-size: 13px;
       font-weight: 500;
     }
@@ -120,14 +175,58 @@
 <body>
   <div class="options-card">
     <div class="options-header">
-      <div style="font-size: 32px;">🛡️</div>
+      <div style="font-size: 36px;">🛡️</div>
       <div>
-        <h1>BrowseGuard Protection Settings</h1>
-        <p>Configure control plane connection and client intercept behavior</p>
+        <h1>BrowseGuard Protection Shield</h1>
+        <p>Enterprise Zero-Trust Link Detonation & Webmail Phishing Defense</p>
       </div>
     </div>
 
+    <!-- Threat Vector Explainer -->
+    <div class="explainer-box">
+      <strong>Why do we need this extension?</strong><br>
+      Over 90% of cyber attacks and credential phishing compromise users when clicking external links inside <strong>Webmail (Gmail, Outlook)</strong> or workplace messaging. BrowseGuard stops zero-day threats right at the point of click. Safe domains bypass with <strong>0ms latency</strong>, while suspicious destinations are isolated in an interactive remote browser (RBI).
+    </div>
+
     <form id="optionsForm">
+      <!-- Protection Mode Selection -->
+      <div class="form-group">
+        <label>Interception & Latency Mode</label>
+        <div class="mode-selector">
+          <label class="mode-option" id="modeOptionWebmail">
+            <input type="radio" name="protectionMode" value="WEBMAIL_ONLY" checked>
+            <div>
+              <div class="mode-title">
+                <span>Webmail & Collaboration Shield</span>
+                <span class="mode-badge">RECOMMENDED (0ms LAG)</span>
+              </div>
+              <div class="mode-desc">
+                Zero browsing delay. Only shields links clicked inside Gmail, Outlook, Yahoo Mail, Slack, and Teams. Regular browsing on news, shopping, and everyday websites is 100% unimpeded.
+              </div>
+            </div>
+          </label>
+
+          <label class="mode-option" id="modeOptionGlobal">
+            <input type="radio" name="protectionMode" value="GLOBAL">
+            <div>
+              <div class="mode-title">
+                <span>Global Zero-Trust Shield</span>
+              </div>
+              <div class="mode-desc">
+                Inspects untrusted external links across all websites. Relies on the 0ms in-memory whitelist of 300+ trusted global domains and sub-30ms reputation cache to prevent delays.
+              </div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Custom Whitelist -->
+      <div class="form-group">
+        <label for="customWhitelist">Custom Whitelisted Domains (0ms Bypass)</label>
+        <textarea id="customWhitelist" rows="3" placeholder="mycompany.com&#10;internal-portal.net&#10;trustedpartner.org"></textarea>
+        <div class="hint">One domain per line. Links to these domains will always bypass interception instantly. Built-in global whitelist already covers Google, Microsoft, Apple, GitHub, YouTube, etc.</div>
+      </div>
+
       <div class="form-group">
         <label for="apiUrl">Control Plane API Endpoint</label>
         <input type="text" id="apiUrl" placeholder="http://localhost:3000">
@@ -135,27 +234,20 @@
       </div>
 
       <div class="form-group">
-        <label for="apiKey">Extension Pairing Token or API Key</label>
-        <input type="text" id="apiKey" placeholder="bg_ext_... or bg_live_...">
-        <div class="hint">Copy your personal Extension Token (bg_ext_...) from your BrowseGuard Dashboard Profile.</div>
+        <label for="dashboardUrl">BrowseGuard Web Studio & RBI URL</label>
+        <input type="text" id="dashboardUrl" placeholder="http://localhost:5173">
+        <div class="hint">Host where Live Isolated Browser (RBI) sessions are streamed.</div>
       </div>
 
       <div class="form-group">
-        <label for="quarantineThreshold">Quarantine Risk Threshold (0-100)</label>
-        <input type="text" id="quarantineThreshold" placeholder="60">
-        <div class="hint">Scores at or above this threshold trigger an interception warning modal.</div>
-      </div>
-
-      <div class="form-group">
-        <div class="checkbox-group">
-          <input type="checkbox" id="enableWebmailShield" checked>
-          <label for="enableWebmailShield" style="margin-bottom: 0;">Auto-Shield Webmail Links (Gmail, Outlook 365)</label>
-        </div>
+        <label for="apiKey">Extension Pairing Token</label>
+        <input type="text" id="apiKey" placeholder="bg_ext_...">
+        <div class="hint">Copy your personal Extension Token from your BrowseGuard Dashboard Profile.</div>
       </div>
 
       <div class="actions">
         <button type="submit" class="btn-save">Save Settings</button>
-        <button type="button" class="btn-test" id="testBtn">Test Connection</button>
+        <button type="button" class="btn-test" id="testBtn">Test Connection & Pairing</button>
       </div>
 
       <div id="statusMsg" class="status-msg"></div>

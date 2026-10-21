@@ -15,6 +15,8 @@ export default function IocPanel({ analysisId, iocsData }) {
   const urls = indicators.urls || [];
   const ips = indicators.ipv4_addresses || [];
 
+  const [copiedStix, setCopiedStix] = useState(false);
+
   const handleExportJson = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(iocsData, null, 2));
     const downloadAnchor = document.createElement("a");
@@ -23,6 +25,22 @@ export default function IocPanel({ analysisId, iocsData }) {
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+  };
+
+  const handleDownloadStix = () => {
+    window.open(`/api/v1/analyses/${analysisId}/stix?download=true`, "_blank");
+  };
+
+  const handleCopyStix = async () => {
+    try {
+      const resp = await fetch(`/api/v1/analyses/${analysisId}/stix`);
+      if (resp.ok) {
+        const bundle = await resp.json();
+        navigator.clipboard.writeText(JSON.stringify(bundle, null, 2));
+        setCopiedStix(true);
+        setTimeout(() => setCopiedStix(false), 2000);
+      }
+    } catch {}
   };
 
   const handleCopyBlocklist = () => {
@@ -42,9 +60,14 @@ export default function IocPanel({ analysisId, iocsData }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", marginBottom: "16px" }}>
         <div>
           <p className="section-label" style={{ color: "#38bdf8", marginBottom: "4px" }}>Threat Intelligence & TTPs (ANY.RUN Standard)</p>
-          <h2 style={{ fontSize: "1.2rem", margin: 0 }}>Indicators of Compromise (IOCs) & MITRE ATT&CK</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <h2 style={{ fontSize: "1.2rem", margin: 0 }}>Indicators of Compromise (IOCs) & MITRE ATT&CK</h2>
+            <span style={{ fontSize: "0.72rem", padding: "2px 8px", borderRadius: "999px", background: "rgba(168, 85, 247, 0.2)", color: "#d8b4fe", border: "1px solid rgba(168, 85, 247, 0.4)", fontWeight: 700 }}>
+              STIX 2.1 Ready
+            </span>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <button
             type="button"
             className="preset-pill"
@@ -52,6 +75,23 @@ export default function IocPanel({ analysisId, iocsData }) {
             style={{ background: copied ? "rgba(16, 185, 129, 0.2)" : "rgba(30, 41, 59, 0.9)", color: copied ? "#34d399" : "#e2e8f0" }}
           >
             {copied ? "✓ Blocklist Copied" : "📋 Copy Blocklist"}
+          </button>
+          <button
+            type="button"
+            className="preset-pill"
+            onClick={handleCopyStix}
+            style={{ background: copiedStix ? "rgba(16, 185, 129, 0.2)" : "rgba(30, 41, 59, 0.9)", color: copiedStix ? "#34d399" : "#cbd5e1" }}
+          >
+            {copiedStix ? "✓ STIX 2.1 Copied" : "📋 Copy STIX JSON"}
+          </button>
+          <button
+            type="button"
+            className="preset-pill"
+            onClick={handleDownloadStix}
+            style={{ background: "#7c3aed", color: "#fff", border: "none", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px" }}
+            title="Download OASIS STIX 2.1 Cyber Threat Intelligence bundle"
+          >
+            <span>📦</span> Export STIX 2.1 (.json)
           </button>
           <button
             type="button"

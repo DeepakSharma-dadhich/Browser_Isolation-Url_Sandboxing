@@ -88,6 +88,9 @@ class StandaloneWorker:
                             if candidate.exists():
                                 screenshot_path = candidate
 
+                        har_path = session_paths.network_dir / "traffic.har"
+                        dom_path = session_paths.html_dir / "page.html"
+
                         report_data = result
                         report_file = result.get("report_path")
                         if report_file and os.path.exists(str(report_file)):
@@ -102,7 +105,9 @@ class StandaloneWorker:
                         self.db_queue.complete_job(
                             session_id=session_id,
                             report=report_data,
-                            screenshot_path=screenshot_path
+                            screenshot_path=screenshot_path,
+                            har_path=har_path if har_path.exists() else None,
+                            dom_path=dom_path if dom_path.exists() else None,
                         )
                         logger.info("PostgreSQL queue job %s completed successfully!", session_id)
                     except Exception as err:

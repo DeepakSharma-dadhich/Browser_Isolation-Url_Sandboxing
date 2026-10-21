@@ -2,12 +2,16 @@
 
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
+const { pool } = require("../../config/db");
+const { sendSingleWebhook, WEBHOOK_SIGNING_SECRET } = require("../../services/webhookDispatcher");
 
 const {
   submitAnalysis,
   getAnalysisStatus,
   getAnalysisReport,
-  SCREENSHOTS_DIR
+  SCREENSHOTS_DIR,
+  OUTPUT_DIR
 } = require("../../services/vmAgent.service");
 
 const {
@@ -18,6 +22,11 @@ const {
   getAnalysisIocs,
   DEFAULT_ORG_ID
 } = require("../../services/analysisRepository");
+
+const {
+  buildStixBundleForAnalysis,
+  buildAggregatedStixThreatFeed
+} = require("../../services/stixExporter.service");
 
 /**
  * Normalize source channel from request.
@@ -145,10 +154,22 @@ async function getAnalysisV1(req, res, next) {
     }
 
     if (rawReport) {
+      const enrichedReport = {
+        ...rawReport,
+        submitted_url: rawReport.submitted_url || rawReport.target?.submitted_url || null,
+        final_url: rawReport.final_url || rawReport.target?.final_url || null,
+        page_title: rawReport.page_title || rawReport.target?.page_title || null,
+        verdict: rawReport.verdict || rawReport.decision?.verdict || "UNKNOWN",
+        risk_score: typeof rawReport.risk_score === "number" ? rawReport.risk_score : (rawReport.decision?.risk_score ?? 0),
+        risk_level: rawReport.risk_level || rawReport.decision?.risk_level || (rawReport.decision?.risk_score >= 70 ? "HIGH" : rawReport.decision?.risk_score >= 30 ? "MEDIUM" : "LOW"),
+        findings: rawReport.findings || rawReport.analysis?.findings || [],
+        duration_ms: rawReport.duration_ms || rawReport.execution?.duration_ms || null,
+      };
+
       return res.status(200).json({
         success: true,
         report_ready: true,
-        data: rawReport
+        data: enrichedReport
       });
     }
 
@@ -326,11 +347,267 @@ async function getAnalysisIocsV1(req, res, next) {
   }
 }
 
+/**
+ * GET /api/v1/analyses/:id/har
+ *
+ * Download full network stream HTTP Archive (HAR) log for ANY.RUN-style packet analysis.
+ */
+async function getAnalysisHarV1(req, res, next) {
+  try {
+    const analysisId = req.params.id;
+    const harPath = path.join(
+      OUTPUT_DIR,
+      analysisId,
+      "network",
+      "traffic.har"
+    );
+
+    if (!fs.existsSync(harPath)) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: "HAR_NOT_FOUND",
+          message: "No HAR network traffic log is available for this analysis."
+        }
+      });
+    }
+
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="analysis_${analysisId}_network.har"`
+    );
+    return res.sendFile(path.resolve(harPath));
+  } catch (error) {
+    return next(error);
+  }
+}
+
+/**
+ * GET /api/v1/analyses/:id/dom
+ *
+ * View rendered DOM HTML snapshot.
+ */
+async function getAnalysisDomV1(req, res, next) {
+  try {
+    const analysisId = req.params.id;
+    const domPath = path.join(
+      OUTPUT_DIR,
+      analysisId,
+      "html",
+      "page.html"
+    );
+
+    if (!fs.existsSync(domPath)) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: "DOM_NOT_FOUND",
+          message: "No DOM HTML snapshot is available for this analysis."
+        }
+      });
+    }
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.sendFile(path.resolve(domPath));
+  } catch (error) {
+    return next(error);
+  }
+}
+
+/**
+ * GET /api/v1/analyses/:id/stix
+ *
+ * Export OASIS STIX 2.1 Threat Intelligence Bundle for this analysis.
+ */
+async function getAnalysisStixV1(req, res, next) {
+  try {
+    const analysisId = req.params.id;
+    const isDownload = req.query.download === "true";
+
+    const stixBundle = await buildStixBundleForAnalysis(analysisId);
+
+    if (isDownload) {
+      res.setHeader("Content-Disposition", `attachment; filename="browseguard_stix_${analysisId}.json"`);
+    }
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    return res.status(200).json(stixBundle);
+  } catch (error) {
+    if (error.message && error.message.includes("not found")) {
+      return res.status(404).json({
+        success: false,
+        error: { code: "ANALYSIS_NOT_FOUND", message: error.message }
+      });
+    }
+    return next(error);
+  }
+}
+
+/**
+ * GET /api/v1/analyses/threat-feed/stix
+ *
+ * Aggregated STIX 2.1 threat feed for SIEM, SOAR, and TAXII polling.
+ */
+async function getAggregatedStixThreatFeedV1(req, res, next) {
+  try {
+    const orgId = req.orgId || DEFAULT_ORG_ID;
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 50));
+
+    const feedBundle = await buildAggregatedStixThreatFeed(orgId, limit);
+
+    if (req.query.download === "true") {
+      res.setHeader("Content-Disposition", `attachment; filename="browseguard_threat_feed_stix21.json"`);
+    }
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    return res.status(200).json(feedBundle);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+/**
+ * POST /api/v1/analyses/:id/dispatch-siem
+ *
+ * Dispatch an authoritative Security Incident Alert to configured SIEM / SOAR / Slack webhooks.
+ * Supports manual target Webhook URL override and custom containment checklist telemetry.
+ */
+async function dispatchSiemAlertV1(req, res, next) {
+  try {
+    const analysisId = req.params.id;
+    const orgId = req.orgId || DEFAULT_ORG_ID;
+    const {
+      target_url: customWebhookUrl,
+      tlp = "TLP:AMBER+STRICT",
+      containment_checklist = {},
+      notes = ""
+    } = req.body || {};
+
+    // 1. Fetch analysis details and IOCs
+    const analysis = await getAnalysisById(analysisId);
+    if (!analysis) {
+      return res.status(404).json({
+        success: false,
+        error: { code: "ANALYSIS_NOT_FOUND", message: `Analysis '${analysisId}' was not found.` }
+      });
+    }
+
+    const iocs = await getAnalysisIocs(analysisId);
+
+    // 2. Format authoritative SIEM incident payload
+    const incidentPayload = {
+      event: "incident.security_alert",
+      event_id: `evt_ir_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
+      timestamp: new Date().toISOString(),
+      tlp,
+      incident: {
+        case_id: `BG-IR-${analysisId.toUpperCase().replace(/^SESSION_/, "")}`,
+        analysis_id: analysisId,
+        verdict: analysis.verdict,
+        risk_score: analysis.risk_score,
+        risk_level: analysis.risk_level,
+        recommended_action: analysis.recommended_action,
+        allow_user_access: analysis.allow_user_access,
+        target_url: analysis.submitted_url,
+        final_url: analysis.final_url,
+        domain_changed: Boolean(analysis.metadata?.domain_changed),
+        mitre_attack: (iocs?.mitre_attack_matrix || iocs?.mitre_attack || []).map((m) => ({
+          id: m.id,
+          name: m.name,
+          severity: m.severity
+        })),
+        iocs: {
+          urls: iocs?.indicators?.urls || [analysis.submitted_url],
+          domains: iocs?.indicators?.domains || [],
+          ips: iocs?.indicators?.ips || []
+        },
+        containment_checklist,
+        analyst_notes: notes,
+        analyst: {
+          id: req.user?.id || "usr_soc_admin",
+          name: req.user?.fullName || "Security Administrator",
+          role: req.user?.role || "ADMIN"
+        },
+        links: {
+          report: `/api/v1/analyses/${analysisId}`,
+          screenshot: `/api/v1/analyses/${analysisId}/screenshot`,
+          stix: `/api/v1/analyses/${analysisId}/stix`
+        }
+      }
+    };
+
+    const dispatches = [];
+
+    // 3. Direct target webhook if provided in request body
+    if (customWebhookUrl && /^https?:\/\//i.test(customWebhookUrl)) {
+      const pingResult = await sendSingleWebhook({
+        endpointUrl: customWebhookUrl,
+        signingSecret: WEBHOOK_SIGNING_SECRET,
+        provider: "webhook",
+        payload: incidentPayload,
+        sessionId: analysisId,
+        orgId
+      });
+      dispatches.push(pingResult);
+    }
+
+    // 4. Also check active integrations configured in organization_integrations table
+    const integrationsRes = await pool.query(
+      `SELECT provider, api_key, config 
+       FROM organization_integrations 
+       WHERE organization_id = $1 AND is_enabled = TRUE AND provider IN ('webhook', 'slack');`,
+      [orgId]
+    );
+
+    for (const integ of integrationsRes.rows) {
+      const endpoint = integ.api_key;
+      // Skip if already sent to this exact endpoint
+      if (!endpoint || dispatches.some((d) => d.url === endpoint)) continue;
+
+      const singleRes = await sendSingleWebhook({
+        endpointUrl: endpoint,
+        provider: integ.provider,
+        payload: incidentPayload,
+        signingSecret: integ.config?.secret || WEBHOOK_SIGNING_SECRET,
+        sessionId: analysisId,
+        orgId
+      });
+      dispatches.push(singleRes);
+    }
+
+    if (dispatches.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "NO_WEBHOOK_CONFIGURED",
+        message: "No active SIEM or Webhook integration found. Provide a target_url or configure an integration in API Keys & BYOK."
+      });
+    }
+
+    const anySuccess = dispatches.some((d) => d.success);
+    return res.status(anySuccess ? 200 : 502).json({
+      success: anySuccess,
+      message: anySuccess
+        ? `Incident alert successfully delivered to ${dispatches.filter((d) => d.success).length} destination(s).`
+        : "Failed to deliver incident alert to configured destinations.",
+      incident_id: incidentPayload.incident.case_id,
+      event_id: incidentPayload.event_id,
+      dispatches
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   submitAnalysisV1,
   getAnalysisV1,
   getAnalysisStatusV1,
   getAnalysisScreenshotV1,
   listAnalysesV1,
-  getAnalysisIocsV1
+  getAnalysisIocsV1,
+  getAnalysisHarV1,
+  getAnalysisDomV1,
+  getAnalysisStixV1,
+  getAggregatedStixThreatFeedV1,
+  dispatchSiemAlertV1
 };
+

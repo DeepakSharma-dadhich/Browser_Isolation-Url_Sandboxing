@@ -7,10 +7,13 @@ const {
   getStatus,
   getReport,
   getHistory,
-  getScreenshot
+  getScreenshot,
+  getHar,
+  getDom
 } = require("../controllers/analyze.controller");
-const { authenticateClient } = require("../middleware/auth");
+const { authenticateClient, restrictViewer } = require("../middleware/auth");
 const { checkScanQuota } = require("../middleware/quota");
+const { enforceGateway } = require("../middleware/gatewayAuth");
 
 const router = express.Router();
 
@@ -18,10 +21,11 @@ const router = express.Router();
 router.use(authenticateClient);
 
 /**
- * Submit URL for VM analysis.
+ * Submit URL for VM analysis (Gateway 1: URL Scanner & Sandbox Studio).
+ * Strictly enforces user entitlement & decrements compute quota.
  * POST /api/analyze
  */
-router.post("/", checkScanQuota, analyzeUrl);
+router.post("/", restrictViewer, checkScanQuota, enforceGateway("url_scanner", { consumeQuota: true }), analyzeUrl);
 
 /**
  * Get analysis history from PostgreSQL.
@@ -46,5 +50,17 @@ router.get("/:sessionId/report", getReport);
  * GET /api/analyze/:sessionId/screenshot
  */
 router.get("/:sessionId/screenshot", getScreenshot);
+
+/**
+ * Download network traffic stream (HAR).
+ * GET /api/analyze/:sessionId/har
+ */
+router.get("/:sessionId/har", getHar);
+
+/**
+ * View rendered DOM HTML.
+ * GET /api/analyze/:sessionId/dom
+ */
+router.get("/:sessionId/dom", getDom);
 
 module.exports = router;

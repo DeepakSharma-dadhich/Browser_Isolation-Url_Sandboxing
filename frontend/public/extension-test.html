@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BrowseGuard Extension Interactive Test Lab</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #080f20;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      padding: 40px 20px;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      max-width: 860px;
+      width: 100%;
+    }
+    .header {
+      background: linear-gradient(135deg, rgba(13, 23, 48, 0.95), rgba(8, 15, 32, 0.95));
+      border: 1px solid rgba(0, 172, 245, 0.35);
+      border-radius: 14px;
+      padding: 28px;
+      margin-bottom: 24px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(0, 172, 245, 0.15);
+      color: #00acf5;
+      border: 1px solid rgba(0, 172, 245, 0.35);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    p.subtitle {
+      font-size: 14px;
+      color: #94a3b8;
+      line-height: 1.5;
+    }
+    .instructions {
+      background: #0b152d;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 22px;
+      margin-bottom: 24px;
+    }
+    .instructions h3 {
+      font-size: 15px;
+      color: #38bdf8;
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .step-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .step-card {
+      background: #070e1c;
+      border: 1px solid rgba(51, 65, 85, 0.5);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .step-num {
+      font-size: 10px;
+      font-weight: 800;
+      color: #00acf5;
+      margin-bottom: 4px;
+    }
+    .step-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 4px;
+    }
+    .step-desc {
+      font-size: 11.5px;
+      color: #94a3b8;
+      line-height: 1.4;
+    }
+    code {
+      background: rgba(0, 172, 245, 0.12);
+      color: #38bdf8;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    .test-section {
+      background: #0d1730;
+      border: 1px solid rgba(0, 172, 245, 0.2);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .section-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .test-links-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .link-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #080f20;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 12px 16px;
+      transition: all 0.15s ease;
+    }
+    .link-row:hover {
+      border-color: rgba(0, 172, 245, 0.4);
+      background: #09132a;
+    }
+    .link-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .link-name {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+    .link-url {
+      font-size: 12px;
+      color: #64748b;
+      font-family: monospace;
+    }
+    .test-btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-safe {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .btn-safe:hover {
+      background: rgba(16, 185, 129, 0.25);
+    }
+    .btn-threat {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.35);
+    }
+    .btn-threat:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+    .note-box {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 12px;
+      color: #fde68a;
+      line-height: 1.5;
+      margin-top: 14px;
+    }
+  </style>
+</head>
+<body data-browseguard-test="true">
+  <div class="container">
+    <div class="header">
+      <div class="badge">BrowseGuard Verification Suite</div>
+      <h1><span>🛡️</span> Zero-Trust Link Shield Test Lab</h1>
+      <p class="subtitle">
+        Use this interactive laboratory to test and observe how the BrowseGuard extension intercepts malicious phishing and brand mimicry links, isolates them into safe containers, and allows whitelisted domains with 0ms latency.
+      </p>
+    </div>
+
+    <!-- Quick Deployment Steps -->
+    <div class="instructions">
+      <h3>🚀 How to Load Extension in 30 Seconds</h3>
+      <div class="step-grid">
+        <div class="step-card">
+          <div class="step-num">STEP 1</div>
+          <div class="step-title">Open chrome://extensions</div>
+          <div class="step-desc">Open a new tab and paste <code>chrome://extensions</code> (or <code>edge://extensions</code>).</div>
+        </div>
+        <div class="step-card">
+          <div class="step-num">STEP 2</div>
+          <div class="step-title">Turn ON Developer Mode</div>
+          <div class="step-desc">Toggle the <strong>Developer mode</strong> switch at the top-right corner.</div>
+        </div>
+        <div class="step-card">
+          <div class="step-num">STEP 3</div>
+          <div class="step-title">Click "Load unpacked"</div>
+          <div class="step-desc">Select folder: <code>extension</code> inside your project directory.</div>
+        </div>
+        <div class="step-card">
+          <div class="step-num">STEP 4</div>
+          <div class="step-title">Pin & Test!</div>
+          <div class="step-desc">Pin the 🛡️ icon to your toolbar. By default, it connects to <code>localhost:3000</code>.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Test Vectors -->
+    <div class="test-section">
+      <div class="section-title" style="color: #ef4444;">
+        <span>🚨</span> Malicious / Phishing Links (Should be Intercepted & Blocked)
+      </div>
+      <p style="font-size: 12.5px; color: #94a3b8; margin-bottom: 14px;">
+        When clicked with the extension loaded (in <strong>Global Shield</strong> mode or when tested in the popup), these trigger the Zero-Trust Threat Modal with the option to isolate them in BrowseGuard's Live RBI container:
+      </p>
+
+      <div class="test-links-grid">
+        <div class="link-row">
+          <div class="link-meta">
+            <span class="link-name">PayPal Credential Mimicry Attack</span>
+            <span class="link-url">http://paypal-security-update.xyz/login.php</span>
+          </div>
+          <a href="http://paypal-security-update.xyz/login.php" class="test-btn btn-threat" target="_blank">
+            Click to Test ➔
+          </a>
+        </div>
+
+        <div class="link-row">
+          <div class="link-meta">
+            <span class="link-name">Google Accounts Auth Stealer</span>
+            <span class="link-url">http://accounts-google-verify.top/auth/signin</span>
+          </div>
+          <a href="http://accounts-google-verify.top/auth/signin" class="test-btn btn-threat" target="_blank">
+            Click to Test ➔
+          </a>
+        </div>
+
+        <div class="link-row">
+          <div class="link-meta">
+            <span class="link-name">Direct IP & Internal Network Scraper</span>
+            <span class="link-url">http://192.168.1.1/admin-setup-portal</span>
+          </div>
+          <a href="http://192.168.1.1/admin-setup-portal" class="test-btn btn-threat" target="_blank">
+            Click to Test ➔
+          </a>
+        </div>
+      </div>
+
+      <div class="note-box">
+        💡 <strong>Tip for link clicking:</strong> In the extension popup, make sure to click <strong>"Switch"</strong> to <strong>🌐 Global Shield</strong> if you want links on this local test page to be intercepted. In <strong>Webmail Shield</strong> mode (the default), the extension focuses exclusively on Gmail and Outlook tabs to eliminate all browsing delay.
+      </div>
+    </div>
+
+    <div class="test-section">
+      <div class="section-title" style="color: #10b981;">
+        <span>⚡</span> Whitelisted Links (0ms Latency Bypass)
+      </div>
+      <p style="font-size: 12.5px; color: #94a3b8; margin-bottom: 14px;">
+        These domains are part of BrowseGuard's 300+ trusted domain whitelist. They bypass interception immediately with zero latency:
+      </p>
+
+      <div class="test-links-grid">
+        <div class="link-row">
+          <div class="link-meta">
+            <span class="link-name">GitHub (Verified Clean)</span>
+            <span class="link-url">https://github.com/torvalds/linux</span>
+          </div>
+          <a href="https://github.com/torvalds/linux" class="test-btn btn-safe" target="_blank">
+            Instant Bypass ➔
+          </a>
+        </div>
+
+        <div class="link-row">
+          <div class="link-meta">
+            <span class="link-name">Microsoft Documentation</span>
+            <span class="link-url">https://learn.microsoft.com</span>
+          </div>
+          <a href="https://learn.microsoft.com" class="test-btn btn-safe" target="_blank">
+            Instant Bypass ➔
+          </a>
+        </div>
+
+        <div class="link-row">
+          <div class="link-meta">
+            <span class="link-name">Wikipedia Knowledge Base</span>
+            <span class="link-url">https://en.wikipedia.org/wiki/Browser_isolation</span>
+          </div>
+          <a href="https://en.wikipedia.org/wiki/Browser_isolation" class="test-btn btn-safe" target="_blank">
+            Instant Bypass ➔
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
