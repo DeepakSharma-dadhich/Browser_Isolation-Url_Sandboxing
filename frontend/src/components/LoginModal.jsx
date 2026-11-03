@@ -28,7 +28,11 @@ export default function LoginModal({ onLoginSuccess, onClose, initialMode = "log
 
       const data = await resp.json();
       if (!resp.ok) {
-        throw new Error(data.error || "Authentication failed.");
+        const errorMsg =
+          typeof data.error === "object"
+            ? (data.error?.message || JSON.stringify(data.error))
+            : (data.error || data.message || "Authentication failed.");
+        throw new Error(errorMsg);
       }
 
       const { token, user } = data.data || {};
@@ -72,7 +76,11 @@ export default function LoginModal({ onLoginSuccess, onClose, initialMode = "log
 
       const data = await resp.json();
       if (!resp.ok) {
-        throw new Error(data.error || "Login failed.");
+        const errorMsg =
+          typeof data.error === "object"
+            ? (data.error?.message || JSON.stringify(data.error))
+            : (data.error || data.message || "Login failed.");
+        throw new Error(errorMsg);
       }
 
       const { token, user } = data.data || {};
