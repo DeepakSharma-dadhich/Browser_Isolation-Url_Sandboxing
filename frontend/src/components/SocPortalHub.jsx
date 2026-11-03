@@ -11,7 +11,9 @@ export default function SocPortalHub({
   onOpenApiTerminal,
   subscriptions,
   currentUser,
-  activeSubTab = "hub"
+  activeSubTab = "hub",
+  theme = "dark",
+  onToggleTheme
 }) {
   const [quickUrl, setQuickUrl] = useState("https://example.com");
   const [showQuickModal, setShowQuickModal] = useState(false);
@@ -43,7 +45,7 @@ export default function SocPortalHub({
       {/* Left Persistent SOC Sidebar (Image 1) */}
       <aside className="soc-sidebar">
         <div className="soc-sidebar-top">
-          {/* Logo with ANY.RUN Play Polygon */}
+          {/* Logo */}
           <div
             className="soc-brand-logo"
             onClick={onNavigateToLanding}
@@ -51,7 +53,7 @@ export default function SocPortalHub({
             style={{ cursor: "pointer" }}
           >
             <div className="soc-brand-icon">▶</div>
-            <span>BROWSE<span style={{ color: "#00acf5" }}>GUARD</span></span>
+            <span>BROWSE<span style={{ color: "var(--brand-blue)" }}>GUARD</span></span>
           </div>
 
           {/* "+ New analysis" prominent cyan button (Image 1) */}
@@ -118,7 +120,7 @@ export default function SocPortalHub({
               type="button"
               className="soc-nav-item"
               onClick={onOpenApiTerminal}
-              style={{ color: "#38bdf8" }}
+              style={{ color: "var(--brand-blue)" }}
               title="Interactive API & Gateway Test Terminal"
             >
               <span>⚡</span> API Test Terminal
@@ -127,7 +129,7 @@ export default function SocPortalHub({
               type="button"
               className="soc-nav-item"
               onClick={onNavigateToLanding}
-              style={{ marginTop: "12px", borderTop: "1px solid rgba(255, 255, 255, 0.08)", paddingTop: "12px" }}
+              style={{ marginTop: "12px", borderTop: "1px solid var(--border-subtle)", paddingTop: "12px" }}
             >
               <span>🏠</span> Commercial Site ↗
             </button>
@@ -136,6 +138,19 @@ export default function SocPortalHub({
 
         {/* Sidebar Bottom (Image 1) */}
         <div className="soc-sidebar-bottom">
+          {onToggleTheme && (
+            <button
+              type="button"
+              className="theme-toggle-btn"
+              onClick={onToggleTheme}
+              style={{ margin: "4px 8px 10px", justifyContent: "center" }}
+              title={`Switch to ${theme === "dark" ? "Light Mode (Clean Slate)" : "Dark Mode (Obsidian Cyber)"}`}
+            >
+              <span className="theme-icon">{theme === "dark" ? "🌙" : "☀️"}</span>
+              <span>{theme === "dark" ? "Dark Theme" : "Light Theme"}</span>
+            </button>
+          )}
+
           <button
             type="button"
             className="soc-nav-item"
@@ -143,13 +158,29 @@ export default function SocPortalHub({
           >
             <span>🛒</span> Subscriptions & Quota
           </button>
-          <button
-            type="button"
-            className="soc-nav-item"
-            onClick={() => onOpenAuthModal("profile")}
-          >
-            <span>👤</span> {currentUser?.fullName || "Analyst"} ({currentUser?.role || "ADMIN"})
-          </button>
+          {currentUser ? (
+            <button
+              type="button"
+              className="soc-nav-item"
+              onClick={() => onOpenAuthModal("profile")}
+            >
+              <span>👤</span> {currentUser.fullName || currentUser.email || "Analyst"} ({currentUser.role || "ANALYST"})
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="soc-nav-item"
+              onClick={() => onOpenAuthModal("login")}
+              style={{
+                color: "var(--brand-blue)",
+                fontWeight: 700,
+                background: "rgba(0, 172, 245, 0.12)",
+                border: "1px solid var(--border-highlight)"
+              }}
+            >
+              <span>🔐</span> Sign In / Register
+            </button>
+          )}
         </div>
       </aside>
 
@@ -161,10 +192,25 @@ export default function SocPortalHub({
         <div className="soc-workspace-content">
           {/* Top Header */}
           <div className="soc-workspace-header">
-            <h2>Start your analysis</h2>
-            <p>
-              Interact with cyber threats inside Windows, Linux, macOS, and Android VMs to trigger full attack execution.
-            </p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
+              <div>
+                <h2>Start your analysis</h2>
+                <p>
+                  Interact with cyber threats inside Windows, Linux, macOS, and Android VMs to trigger full attack execution.
+                </p>
+              </div>
+              {onToggleTheme && (
+                <button
+                  type="button"
+                  className="theme-toggle-btn"
+                  onClick={onToggleTheme}
+                  title={`Switch to ${theme === "dark" ? "Light Mode (Clean Slate)" : "Dark Mode (Obsidian Cyber)"}`}
+                >
+                  <span className="theme-icon">{theme === "dark" ? "🌙" : "☀️"}</span>
+                  <span>{theme === "dark" ? "Dark Mode" : "Light Mode"}</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Section: Deep interactive investigation */}
@@ -172,7 +218,7 @@ export default function SocPortalHub({
             Deep interactive investigation in full environment
           </div>
 
-          {/* The 3 Big ANY.RUN Cards (Image 1) */}
+          {/* The 3 Big Submission Cards */}
           <div className="anyrun-cards-grid">
             {/* CARD 1: SUBMIT FILE / EMAIL */}
             <div
@@ -299,22 +345,22 @@ export default function SocPortalHub({
         </footer>
       </main>
 
-      {/* ANY.RUN Task Configuration Modal */}
+      {/* Task Configuration Modal */}
       {showQuickModal && (
         <div className="rbi-modal-overlay" onClick={() => setShowQuickModal(false)}>
           <div
             className="rbi-window"
-            style={{ maxWidth: "680px", background: "#0b1528", border: "1px solid rgba(0, 172, 245, 0.4)", borderRadius: "12px", overflow: "hidden" }}
+            style={{ maxWidth: "680px", background: "var(--bg-panel)", border: "1px solid var(--border-subtle)", borderRadius: "12px", overflow: "hidden", boxShadow: "var(--shadow-panel)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="rbi-header" style={{ background: "#060d1a", borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}>
+            <div className="rbi-header" style={{ background: "var(--bg-panel-header)", borderBottom: "1px solid var(--border-subtle)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <span style={{ fontSize: "1.2rem", color: "#00acf5" }}>🚀</span>
+                <span style={{ fontSize: "1.2rem", color: "var(--brand-blue)" }}>🚀</span>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: "1.05rem", color: "#f8fafc", fontWeight: 800 }}>
+                  <h3 style={{ margin: 0, fontSize: "1.05rem", color: "var(--text-primary)", fontWeight: 800 }}>
                     New Sandbox Analysis Task
                   </h3>
-                  <span style={{ fontSize: "0.74rem", color: "#94a3b8" }}>
+                  <span style={{ fontSize: "0.74rem", color: "var(--text-secondary)" }}>
                     Configure isolated VM environment & threat heuristics
                   </span>
                 </div>
@@ -323,7 +369,7 @@ export default function SocPortalHub({
                 type="button"
                 className="rbi-ctrl-btn"
                 onClick={() => setShowQuickModal(false)}
-                style={{ background: "transparent", border: "none", color: "#94a3b8", fontSize: "1.2rem", cursor: "pointer" }}
+                style={{ background: "transparent", border: "none", color: "var(--text-secondary)", fontSize: "1.2rem", cursor: "pointer" }}
               >
                 ✕
               </button>
@@ -332,7 +378,7 @@ export default function SocPortalHub({
             <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}>
               {/* URL Input */}
               <div>
-                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 750, color: "#cbd5e1", marginBottom: "8px" }}>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 750, color: "var(--text-primary)", marginBottom: "8px" }}>
                   Target URL to Detonate:
                 </label>
                 <div style={{ display: "flex", gap: "10px" }}>
@@ -342,7 +388,7 @@ export default function SocPortalHub({
                     onChange={(e) => setQuickUrl(e.target.value)}
                     placeholder="https://malicious-domain.com/phish.html"
                     className="history-search-input"
-                    style={{ flex: 1, padding: "12px 16px", fontSize: "0.95rem" }}
+                    style={{ flex: 1, padding: "12px 16px", fontSize: "0.95rem", background: "var(--bg-input)", color: "var(--text-primary)", border: "1px solid var(--border-subtle)" }}
                     autoFocus
                     onKeyDown={(e) => {
                       if (e.key === "Enter") handleLaunchDetonation();
@@ -361,7 +407,7 @@ export default function SocPortalHub({
 
               {/* Fast Presets */}
               <div>
-                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 750, color: "#94a3b8", marginBottom: "6px" }}>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 750, color: "var(--text-secondary)", marginBottom: "6px" }}>
                   Fast Security Vectors:
                 </label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -383,12 +429,12 @@ export default function SocPortalHub({
               </div>
 
               {/* Environment Options */}
-              <div style={{ background: "rgba(15, 23, 42, 0.6)", padding: "16px", borderRadius: "8px", border: "1px solid rgba(255, 255, 255, 0.06)", display: "flex", flexDirection: "column", gap: "12px" }}>
-                <span style={{ fontSize: "0.76rem", fontWeight: 800, color: "#00acf5", textTransform: "uppercase" }}>
+              <div style={{ background: "var(--bg-card)", padding: "16px", borderRadius: "8px", border: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column", gap: "12px" }}>
+                <span style={{ fontSize: "0.76rem", fontWeight: 800, color: "var(--brand-blue)", textTransform: "uppercase" }}>
                   Sandbox Environment
                 </span>
                 <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.82rem", color: "#e2e8f0", cursor: "pointer" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.82rem", color: "var(--text-primary)", cursor: "pointer" }}>
                     <input
                       type="radio"
                       name="osChoice"
@@ -397,7 +443,7 @@ export default function SocPortalHub({
                     />
                     🐧 Linux VM (Chromium 128)
                   </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.82rem", color: "#e2e8f0", cursor: "pointer" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.82rem", color: "var(--text-primary)", cursor: "pointer" }}>
                     <input
                       type="radio"
                       name="osChoice"
@@ -406,7 +452,7 @@ export default function SocPortalHub({
                     />
                     🪟 Windows 10 Pro (x64)
                   </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.82rem", color: "#e2e8f0", cursor: "pointer" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.82rem", color: "var(--text-primary)", cursor: "pointer" }}>
                     <input
                       type="radio"
                       name="osChoice"
@@ -418,7 +464,7 @@ export default function SocPortalHub({
                 </div>
 
                 <div style={{ display: "flex", gap: "16px", marginTop: "4px" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.8rem", color: "#94a3b8", cursor: "pointer" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.8rem", color: "var(--text-secondary)", cursor: "pointer" }}>
                     <input
                       type="checkbox"
                       checked={antiCloak}
@@ -426,7 +472,7 @@ export default function SocPortalHub({
                     />
                     Traverse Anti-Cloaking Click Walls
                   </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.8rem", color: "#94a3b8" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
                     <input type="checkbox" defaultChecked disabled />
                     Capture Full Network HAR Log
                   </label>

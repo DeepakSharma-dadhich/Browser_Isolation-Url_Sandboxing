@@ -2,20 +2,30 @@
 
 const { spawn } = require("child_process");
 const path = require("path");
+const fs = require("fs");
 const WebSocket = require("ws");
 
 const activeSessions = new Map();
 let nextPort = 9225;
 
 function getPythonPath() {
-  const venvPython = path.resolve(__dirname, "../../../venv/Scripts/python.exe");
-  return venvPython;
+  if (process.env.PYTHON_PATH) return process.env.PYTHON_PATH;
+  const venvWin = path.resolve(__dirname, "../../../venv/Scripts/python.exe");
+  if (fs.existsSync(venvWin)) return venvWin;
+  const venvLinux = path.resolve(__dirname, "../../../venv/bin/python");
+  if (fs.existsSync(venvLinux)) return venvLinux;
+  return process.platform === "win32" ? "python" : "python3";
 }
 
 const { query } = require("../config/db");
 
 function getRbiScriptPath() {
-  return path.resolve(__dirname, "../../../vm-agent/rbi_server.py");
+  if (process.env.RBI_SCRIPT_PATH) return process.env.RBI_SCRIPT_PATH;
+  const relPath = path.resolve(__dirname, "../../../vm-agent/rbi_server.py");
+  if (fs.existsSync(relPath)) return relPath;
+  const dockerPath = "/app/vm-agent/rbi_server.py";
+  if (fs.existsSync(dockerPath)) return dockerPath;
+  return relPath;
 }
 
 /**

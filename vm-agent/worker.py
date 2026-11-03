@@ -49,11 +49,16 @@ class StandaloneWorker:
 
         try:
             self.job_manager.recover_interrupted_jobs()
+            self.db_queue.recover_stuck_jobs(timeout_minutes=5)
         except Exception as exc:
             logger.warning("Interrupted job recovery note: %s", exc)
 
+        last_reap_time = time.time()
         while self.running:
             processed_something = False
+            if time.time() - last_reap_time > 300:
+                self.db_queue.recover_stuck_jobs(timeout_minutes=5)
+                last_reap_time = time.time()
             try:
                 # 1. Primary: Check PostgreSQL Direct Queue (No disk files needed)
                 db_job = self.db_queue.claim_next_job()

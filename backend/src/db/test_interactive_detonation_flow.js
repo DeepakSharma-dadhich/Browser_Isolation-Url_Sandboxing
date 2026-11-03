@@ -1,5 +1,5 @@
 /**
- * End-to-end verification of Interactive Sandbox Detonation (ANY.RUN style):
+ * End-to-end verification of Interactive Sandbox Detonation (BrowseGuard style):
  * Tests live input dispatching (mouse, navigation), anti-stealth initialization,
  * and on-demand threat report compilation into PostgreSQL.
  */

@@ -90,7 +90,7 @@ export default function ThreatRiskDial({
             cy="80"
             r={radius}
             fill="none"
-            stroke="rgba(255, 255, 255, 0.08)"
+            stroke="var(--border-strong, rgba(148, 163, 184, 0.25))"
             strokeWidth="12"
             strokeDasharray={`${arcLength} ${circumference}`}
             strokeDashoffset="0"

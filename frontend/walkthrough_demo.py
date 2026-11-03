@@ -36,12 +36,12 @@ def run_walkthrough():
         page.wait_for_timeout(500)
         page.locator("button:has-text('Scan with BrowseGuard')").click()
         
-        # Wait for ANY.RUN studio results layout to appear
+        # Wait for BrowseGuard studio results layout to appear
         print("Waiting for PostgreSQL queue execution to finish...")
         page.wait_for_selector(".anyrun-hud", timeout=35000)
         page.wait_for_timeout(2000)
         page.screenshot(path="demo_3_scan_results.png", full_page=True)
-        print("[OK] ANY.RUN Studio Scan Results, Viewport & Threat Rail captured.")
+        print("[OK] BrowseGuard Studio Scan Results, Viewport & Threat Rail captured.")
 
         # Step 3b: Switch to IOCs & MITRE ATT&CK Tab
         print("Step 3b: Switching to Threat Intelligence & IOCs drawer tab...")

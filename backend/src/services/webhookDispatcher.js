@@ -3,6 +3,7 @@
 const crypto = require("crypto");
 const { pool } = require("../config/db");
 const { DEFAULT_ORG_ID } = require("./analysisRepository");
+const { validateOutboundUrl } = require("../utils/ssrfGuard");
 
 const WEBHOOK_SIGNING_SECRET =
   process.env.BROWSEGUARD_WEBHOOK_SECRET || "bg_wh_secret_default_2026";
@@ -219,6 +220,9 @@ async function sendSingleWebhook({
   let dispatchError = null;
 
   try {
+    // Validate target destination against internal/private IP and cloud metadata ranges
+    await validateOutboundUrl(endpointUrl);
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 
@@ -290,6 +294,9 @@ async function sendTestWebhookPing({
   if (!url || !/^https?:\/\//i.test(url)) {
     throw new Error("A valid HTTP or HTTPS endpoint URL is required.");
   }
+
+  // Enforce outbound SSRF perimeter defense
+  await validateOutboundUrl(url);
 
   const startTime = Date.now();
   let payload;

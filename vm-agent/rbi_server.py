@@ -97,6 +97,9 @@ class RBISession:
             "--no-first-run",
             "--no-default-browser-check",
             "--disable-blink-features=AutomationControlled",
+            "--allow-running-insecure-content",
+            "--disable-features=BlockInsecurePrivateNetworkRequests",
+            "--ignore-certificate-errors",
         ]
 
         logger.info("Launching isolated Chromium for RBI session %s. Target: %s", self.session_id, self.initial_url)
@@ -165,7 +168,32 @@ class RBISession:
             is_allowed, reason = guard.evaluate_url(req.url)
             if not is_allowed:
                 logger.warning("RBI SSRF Blocked request to %s: %s", req.url, reason)
-                await route.abort("blockedbyclient")
+                if req.is_navigation_request():
+                    custom_html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>BrowseGuard Security Egress Intercept</title>
+    <style>
+        body {{ background: #070d19; color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }}
+        .card {{ background: #0f172a; border: 1px solid #ef4444; border-radius: 12px; padding: 36px; max-width: 540px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.6); text-align: center; }}
+        h1 {{ color: #ef4444; font-size: 20px; margin-top: 0; display: flex; align-items: center; justify-content: center; gap: 8px; }}
+        p {{ color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 16px 0; }}
+        .badge {{ background: #450a0a; color: #fca5a5; padding: 6px 12px; border-radius: 6px; font-family: monospace; font-size: 13px; word-break: break-all; display: inline-block; }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🛡️ Restricted Internal Egress Blocked</h1>
+        <p>BrowseGuard Zero-Trust Network Guard prevented an egress attempt to an internal host, link-local, or private IP network address.</p>
+        <div class="badge">{reason}</div>
+        <p style="font-size: 12px; color: #64748b; margin-top: 24px;">Target URL: {req.url}</p>
+    </div>
+</body>
+</html>"""
+                    await route.fulfill(status=403, content_type="text/html", body=custom_html)
+                else:
+                    await route.abort("blockedbyclient")
             else:
                 await route.continue_()
 

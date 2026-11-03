@@ -41,15 +41,30 @@
     // Non-blocking
   }
 
+  let activeSafeToast = null;
+  let safeToastTimer = null;
+
+  function removeSafeToast() {
+    if (safeToastTimer) {
+      clearTimeout(safeToastTimer);
+      safeToastTimer = null;
+    }
+    if (activeSafeToast && activeSafeToast.parentNode) {
+      activeSafeToast.parentNode.removeChild(activeSafeToast);
+      activeSafeToast = null;
+    }
+  }
+
   function showScanningToast(url) {
     removeScanningToast();
+    removeSafeToast();
     const toast = document.createElement("div");
     toast.className = "bg-scan-toast";
     toast.innerHTML = `
       <div class="bg-spinner"></div>
       <div>
         <div style="font-weight: 600; color: #00e5ff;">BrowseGuard Link Shield</div>
-        <div style="color: #94a3b8; font-size: 11px;">Verifying destination in sub-50ms reputation cache...</div>
+        <div style="color: #94a3b8; font-size: 11px;">Inspecting link safety in real-time...</div>
       </div>
     `;
     document.body.appendChild(toast);
@@ -61,6 +76,190 @@
       activeToast.parentNode.removeChild(activeToast);
       activeToast = null;
     }
+  }
+
+  function unpackDestinationUrl(rawUrl) {
+    if (!rawUrl) return rawUrl;
+    try {
+      const parsed = new URL(rawUrl.startsWith("http") ? rawUrl : "https://" + rawUrl);
+      if (parsed.hostname.includes("google.") && (parsed.pathname === "/url" || parsed.pathname === "/goto")) {
+        const q = parsed.searchParams.get("q") || parsed.searchParams.get("url");
+        if (q && /^https?:\/\//i.test(q)) {
+          return q;
+        }
+      }
+      if (parsed.hostname.includes("safelinks.protection.outlook.com")) {
+        const realUrl = parsed.searchParams.get("url");
+        if (realUrl && /^https?:\/\//i.test(realUrl)) {
+          return realUrl;
+        }
+      }
+      if (parsed.hostname.includes("urldefense.proofpoint.com")) {
+        const u = parsed.searchParams.get("u");
+        if (u) {
+          return decodeURIComponent(u.replace(/-/g, "%").replace(/_/g, "/"));
+        }
+      }
+    } catch {}
+    return rawUrl;
+  }
+
+  function showSafeToast(url, safeResult, config) {
+    removeScanningToast();
+    removeSafeToast();
+    if (activeModal && activeModal.parentNode) {
+      activeModal.parentNode.removeChild(activeModal);
+      activeModal = null;
+    }
+
+    const toast = document.createElement("div");
+    toast.className = "bg-safe-toast";
+    toast.innerHTML = `
+      <div class="bg-safe-toast-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="bg-modal-icon bg-icon-safe" style="width: 32px; height: 32px; font-size: 16px; border-radius: 8px;">✓</div>
+          <div>
+            <div style="font-weight: 700; font-size: 14px; color: #ffffff;">Link Verified Safe</div>
+            <div style="font-size: 11px; color: #4ade80; font-weight: 700;">● ZERO THREATS DETECTED (0/100)</div>
+          </div>
+        </div>
+        <button class="bg-btn-close" id="bg-safe-close" title="Dismiss">✕</button>
+      </div>
+
+      <div class="bg-url-box" style="margin-bottom: 10px; padding: 8px 10px; font-size: 12px; color: #34d399; background: #061120; border-color: rgba(34, 197, 94, 0.3); word-break: break-all;">
+        ${escapeHtml(url)}
+      </div>
+
+      <div style="font-size: 12px; color: #94a3b8; line-height: 1.4; margin-bottom: 14px;">
+        ${escapeHtml(safeResult?.reason || "Destination evaluated as clean and legitimate. No phishing, credential harvesting, or malware signatures detected.")}
+      </div>
+
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button class="bg-btn-safe" id="bg-safe-open">
+          🔗 Open Link
+        </button>
+        <button class="bg-btn-secondary" id="bg-safe-dismiss" style="padding: 7px 14px; font-size: 12px;">
+          Dismiss
+        </button>
+      </div>
+    `;
+
+    document.body.appendChild(toast);
+    activeSafeToast = toast;
+
+    toast.querySelector("#bg-safe-close").addEventListener("click", removeSafeToast);
+    toast.querySelector("#bg-safe-dismiss").addEventListener("click", removeSafeToast);
+    toast.querySelector("#bg-safe-open").addEventListener("click", () => {
+      removeSafeToast();
+      window.open(url, "_blank", "noopener,noreferrer");
+    });
+
+    safeToastTimer = setTimeout(removeSafeToast, 12000);
+  }
+
+  function inspectLinkInPage(rawUrl) {
+    if (!rawUrl) return;
+    const url = unpackDestinationUrl(rawUrl);
+
+    removeScanningToast();
+    removeSafeToast();
+    if (activeModal && activeModal.parentNode) {
+      activeModal.parentNode.removeChild(activeModal);
+      activeModal = null;
+    }
+
+    showScanningToast(url);
+
+    let responded = false;
+    const safetyTimer = setTimeout(() => {
+      if (!responded) {
+        responded = true;
+        removeScanningToast();
+        showThreatModal(url, {
+          verdict: "UNVERIFIED",
+          risk_score: 50,
+          recommended_action: "ISOLATE",
+          reason: "Evaluation timeout. BrowseGuard background engine took longer than 3.5s. Open in Isolated Sandbox to inspect safely."
+        }, cachedConfig);
+      }
+    }, 3500);
+
+    try {
+      chrome.runtime.sendMessage(
+        { type: "FAST_CHECK_URL", url: url },
+        function (response) {
+          if (responded) return;
+          responded = true;
+          clearTimeout(safetyTimer);
+          removeScanningToast();
+
+          if (chrome.runtime.lastError || !response || !response.success) {
+            showThreatModal(url, {
+              verdict: "UNVERIFIED",
+              risk_score: 50,
+              recommended_action: "ISOLATE",
+              reason: "Could not reach BrowseGuard control plane. Open in isolated sandbox to inspect safely."
+            }, cachedConfig);
+            return;
+          }
+
+          const { result, config } = response;
+          cachedConfig = { ...cachedConfig, ...(config || {}) };
+
+          if (result.bypass || result.verdict === "SAFE") {
+            showSafeToast(url, result, cachedConfig);
+          } else {
+            showThreatModal(url, result, cachedConfig);
+          }
+        }
+      );
+    } catch (err) {
+      if (responded) return;
+      responded = true;
+      clearTimeout(safetyTimer);
+      removeScanningToast();
+      showThreatModal(url, {
+        verdict: "UNVERIFIED",
+        risk_score: 50,
+        recommended_action: "ISOLATE",
+        reason: "Extension message error: " + err.message
+      }, cachedConfig);
+    }
+  }
+
+  // Track context menu targets to detect visible link text
+  let lastContextElement = null;
+  document.addEventListener("contextmenu", (e) => {
+    lastContextElement = e.target;
+  }, true);
+
+  // Listen for in-page inspection triggers from background context menu
+  try {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message && message.type === "INSPECT_LINK_IN_PAGE" && message.url) {
+        let inspectUrl = message.url;
+        if (lastContextElement) {
+          const anchor = lastContextElement.closest("a");
+          if (anchor) {
+            const rawText = (anchor.textContent || "").trim();
+            const textUrlMatch = rawText.match(/^(?:hxxps?|https?):\/\/[^\s]+/i) ||
+                                 rawText.match(/^(\d{1,3}\.){3}\d{1,3}(:\d+)?(\/[^\s]*)?/);
+            if (textUrlMatch) {
+              let visibleUrl = textUrlMatch[0].replace(/^hxxp/i, "http");
+              if (!visibleUrl.startsWith("http")) visibleUrl = "http://" + visibleUrl;
+              if (inspectUrl.includes("urlhaus.abuse.ch") || inspectUrl.includes("threatfox") || /^https?:\/\/(\d{1,3}\.){3}\d{1,3}/.test(visibleUrl)) {
+                inspectUrl = visibleUrl;
+              }
+            }
+          }
+        }
+        inspectLinkInPage(inspectUrl);
+        sendResponse({ success: true, url: inspectUrl });
+      }
+      return true;
+    });
+  } catch (e) {
+    // Non-blocking
   }
 
   function showThreatModal(url, threatResult, config) {
@@ -211,35 +410,103 @@
       e.preventDefault();
       e.stopPropagation();
 
-      showScanningToast(href);
+      const rawText = (anchor.textContent || "").trim();
+      const textUrlMatch = rawText.match(/^(?:hxxps?|https?):\/\/[^\s]+/i) ||
+                           rawText.match(/^(\d{1,3}\.){3}\d{1,3}(:\d+)?(\/[^\s]*)?/);
+      let visibleUrl = textUrlMatch ? textUrlMatch[0].replace(/^hxxp/i, "http") : null;
+      if (visibleUrl && !visibleUrl.startsWith("http")) {
+        visibleUrl = "http://" + visibleUrl;
+      }
+
+      // Check if href is a tracking redirect or wrapper (e.g. google.com/goto?url=... or urlhaus.abuse.ch)
+      let targetToCheck = unpackDestinationUrl(href);
+      if (visibleUrl && visibleUrl !== href) {
+        if (href.includes("urlhaus.abuse.ch") || href.includes("threatfox.abuse.ch") || /^https?:\/\/(\d{1,3}\.){3}\d{1,3}/.test(visibleUrl)) {
+          targetToCheck = visibleUrl;
+        }
+      }
+
+      let responded = false;
+      let scanningToastShown = false;
+      const toastTimer = setTimeout(() => {
+        if (!responded) {
+          scanningToastShown = true;
+          showScanningToast(targetToCheck);
+        }
+      }, 120);
+
+      const safetyTimer = setTimeout(() => {
+        if (!responded) {
+          responded = true;
+          clearTimeout(toastTimer);
+          if (scanningToastShown) removeScanningToast();
+          if (isTestPage) {
+            showThreatModal(targetToCheck, {
+              verdict: "UNVERIFIED",
+              risk_score: 50,
+              recommended_action: "ISOLATE",
+              reason: "Evaluation timeout. BrowseGuard background engine took longer than 3.5s."
+            }, cachedConfig);
+          } else {
+            proceedToUrl(href);
+          }
+        }
+      }, 3500);
 
       try {
         chrome.runtime.sendMessage(
-          { type: "FAST_CHECK_URL", url: href },
+          { type: "FAST_CHECK_URL", url: targetToCheck },
           function (response) {
-            removeScanningToast();
+            if (responded) return;
+            responded = true;
+            clearTimeout(toastTimer);
+            clearTimeout(safetyTimer);
+            if (scanningToastShown) removeScanningToast();
 
             if (chrome.runtime.lastError || !response || !response.success) {
-              // Graceful fallback to avoid trapping user on glitch
-              proceedToUrl(href);
+              if (isTestPage) {
+                showThreatModal(targetToCheck, {
+                  verdict: "UNVERIFIED",
+                  risk_score: 50,
+                  recommended_action: "ISOLATE",
+                  reason: "Could not reach BrowseGuard control plane. Open in isolated sandbox to inspect safely."
+                }, cachedConfig);
+              } else {
+                proceedToUrl(href);
+              }
               return;
             }
 
             const { result, config } = response;
             cachedConfig = { ...cachedConfig, ...(config || {}) };
 
-            // If safe or whitelisted by fast-check API -> navigate instantly
+            if (isTestPage) {
+              // On the test lab page, ALWAYS show the in-page verdict card
+              if (result.bypass || result.verdict === "SAFE") {
+                showSafeToast(targetToCheck, result, cachedConfig);
+              } else {
+                showThreatModal(targetToCheck, result, cachedConfig);
+              }
+              return;
+            }
+
+            // In live browsing (Webmail or Global mode):
+            // SILENT SAFE NAVIGATION (0ms delay, no blocking popups!)
             if (result.bypass || result.verdict === "SAFE") {
               proceedToUrl(href);
               return;
             }
 
-            // If malicious or suspicious -> quarantine and display Zero-Trust Threat Modal
-            showThreatModal(href, result, config);
+            // If malicious or suspicious -> quarantine and display Zero-Trust Threat Modal!
+            showThreatModal(targetToCheck, result, config);
           }
         );
       } catch (err) {
-        removeScanningToast();
+        if (responded) return;
+        responded = true;
+        clearTimeout(toastTimer);
+        clearTimeout(safetyTimer);
+        if (scanningToastShown) removeScanningToast();
         proceedToUrl(href);
       }
     },

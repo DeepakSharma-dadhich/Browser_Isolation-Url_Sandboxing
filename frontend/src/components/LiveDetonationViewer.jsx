@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 /**
  * LiveDetonationViewer
  *
- * ANY.RUN-style interactive live browser detonation chamber.
+ * BrowseGuard interactive live browser detonation chamber.
  * Supports:
  * - Live 60FPS CDP screencast stream.
  * - Bidirectional mouse interaction (click, drag, right-click).
@@ -255,9 +255,13 @@ export default function LiveDetonationViewer({
 
     let isMounted = true;
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = window.location.port === "5173" ? "localhost:3000" : window.location.host;
+    const host = window.location.host;
+    const token = localStorage.getItem("bg_jwt_token");
+    const extToken = localStorage.getItem("bg_ext_token");
+    const authToken = token || extToken;
+    const tokenParam = authToken ? `?token=${encodeURIComponent(authToken)}` : "";
     // Route to live bridge
-    const wsUrl = `${protocol}//${host}/ws/live/${encodeURIComponent(sessionId)}`;
+    const wsUrl = `${protocol}//${host}/ws/live/${encodeURIComponent(sessionId)}${tokenParam}`;
 
     setConnectionStatus("connecting");
     const ws = new WebSocket(wsUrl);
@@ -277,6 +281,24 @@ export default function LiveDetonationViewer({
       ]);
     };
 
+    // Fallback: If session is already completed or if no live stream frames arrive in 2.5s,
+    // load the captured screenshot into the canvas so it renders the archived view cleanly.
+    const fallbackTimer = setTimeout(() => {
+      if (!isMounted) return;
+      const fallbackImg = new Image();
+      fallbackImg.onload = () => {
+        if (!isMounted) return;
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(fallbackImg, 0, 0, canvas.width, canvas.height);
+          setFrameCount((prev) => (prev === 0 ? 1 : prev));
+          setConnectionStatus("ended");
+        }
+      };
+      fallbackImg.src = `/api/analyze/${encodeURIComponent(sessionId)}/screenshot?t=${Date.now()}`;
+    }, 2500);
+
     ws.onmessage = (event) => {
       if (!isMounted) return;
       try {
@@ -289,7 +311,23 @@ export default function LiveDetonationViewer({
           }
           if (msg.title) setPageTitle(msg.title);
           if (Array.isArray(msg.events)) setEvents(msg.events);
+          if (msg.status === "completed" || msg.status === "ended") {
+            setConnectionStatus("ended");
+            clearTimeout(fallbackTimer);
+            const fallbackImg = new Image();
+            fallbackImg.onload = () => {
+              if (!isMounted) return;
+              const canvas = canvasRef.current;
+              if (canvas) {
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(fallbackImg, 0, 0, canvas.width, canvas.height);
+                setFrameCount(1);
+              }
+            };
+            fallbackImg.src = `/api/analyze/${encodeURIComponent(sessionId)}/screenshot?t=${Date.now()}`;
+          }
         } else if (msg.type === "frame" && msg.data) {
+          clearTimeout(fallbackTimer);
           setConnectionStatus("interactive");
           setFrameCount((c) => c + 1);
 
@@ -333,6 +371,7 @@ export default function LiveDetonationViewer({
         } else if (msg.type === "completed" || msg.type === "analysis_completed") {
           setConnectionStatus("ended");
           setIsFinalizing(false);
+          clearTimeout(fallbackTimer);
           if (onComplete) onComplete(sessionId);
         }
       } catch (err) {
@@ -355,6 +394,7 @@ export default function LiveDetonationViewer({
 
     return () => {
       isMounted = false;
+      clearTimeout(fallbackTimer);
       if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
         ws.close();
       }
@@ -386,22 +426,23 @@ export default function LiveDetonationViewer({
       ref={containerRef}
       className={`live-detonation-viewer ${isFullscreen ? "fullscreen" : ""}`}
       style={{
-        background: "#071020",
-        border: "1px solid rgba(0, 172, 245, 0.45)",
+        background: "var(--bg-panel)",
+        border: "1px solid var(--border-subtle)",
         borderRadius: "12px",
         overflow: "hidden",
-        boxShadow: "0 12px 40px rgba(0, 0, 0, 0.75), 0 0 25px rgba(0, 172, 245, 0.15)",
+        boxShadow: "var(--shadow-panel)",
         margin: compact ? "0" : "18px 0 24px",
         display: "flex",
-        flexDirection: "column"
+        flexDirection: "column",
+        transition: "background 0.2s ease, border-color 0.2s ease"
       }}
     >
-      {/* 1. ANY.RUN Top Control Bar */}
+      {/* 1. BrowseGuard Top Control Bar */}
       <div
         style={{
-          background: "linear-gradient(90deg, #0b192e 0%, #081426 100%)",
+          background: "var(--bg-panel-header)",
           padding: "10px 16px",
-          borderBottom: "1px solid rgba(0, 172, 245, 0.25)",
+          borderBottom: "1px solid var(--border-subtle)",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -416,8 +457,8 @@ export default function LiveDetonationViewer({
               width: "10px",
               height: "10px",
               borderRadius: "50%",
-              background: connectionStatus === "ended" ? "#10b981" : "#ef4444",
-              boxShadow: connectionStatus === "ended" ? "0 0 8px #10b981" : "0 0 10px #ef4444",
+              background: connectionStatus === "ended" ? "var(--brand-emerald)" : "var(--brand-crimson)",
+              boxShadow: connectionStatus === "ended" ? "0 0 8px var(--brand-emerald)" : "0 0 10px var(--brand-crimson)",
               animation: connectionStatus === "ended" ? "none" : "pulse 1.5s infinite"
             }}
           />
@@ -426,7 +467,7 @@ export default function LiveDetonationViewer({
               fontWeight: 900,
               fontSize: "0.85rem",
               letterSpacing: "0.05em",
-              color: connectionStatus === "ended" ? "#10b981" : "#f43f5e",
+              color: connectionStatus === "ended" ? "var(--brand-emerald)" : "var(--brand-crimson)",
               textTransform: "uppercase"
             }}
           >
@@ -440,8 +481,8 @@ export default function LiveDetonationViewer({
           <span
             style={{
               background: connectionStatus === "ended" ? "rgba(16, 185, 129, 0.15)" : "rgba(0, 172, 245, 0.15)",
-              color: connectionStatus === "ended" ? "#34d399" : "#38bdf8",
-              border: `1px solid ${connectionStatus === "ended" ? "rgba(16, 185, 129, 0.35)" : "rgba(0, 172, 245, 0.35)"}`,
+              color: connectionStatus === "ended" ? "var(--brand-emerald)" : "var(--brand-blue)",
+              border: `1px solid ${connectionStatus === "ended" ? "rgba(16, 185, 129, 0.35)" : "var(--border-highlight)"}`,
               padding: "2px 8px",
               borderRadius: "4px",
               fontSize: "0.72rem",
@@ -458,7 +499,7 @@ export default function LiveDetonationViewer({
               style={{
                 background: "linear-gradient(135deg, #0ea5e9 0%, #00e5ff 100%)",
                 border: "none",
-                color: "#07101e",
+                color: "#ffffff",
                 borderRadius: "5px",
                 padding: "2px 10px",
                 fontSize: "0.74rem",
@@ -483,22 +524,22 @@ export default function LiveDetonationViewer({
               display: "flex",
               alignItems: "center",
               gap: "6px",
-              background: "rgba(15, 23, 42, 0.8)",
+              background: "var(--bg-card)",
               padding: "4px 10px",
               borderRadius: "6px",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
+              border: "1px solid var(--border-subtle)",
               fontFamily: "monospace",
               fontSize: "0.78rem"
             }}
           >
-            <span style={{ color: "#94a3b8" }}>⏱️ {formatTime(timeLeft)}</span>
+            <span style={{ color: "var(--text-secondary)" }}>⏱️ {formatTime(timeLeft)}</span>
             <button
               type="button"
               onClick={handleExtendTime}
               style={{
-                background: "rgba(0, 172, 245, 0.2)",
-                border: "1px solid rgba(0, 172, 245, 0.4)",
-                color: "#38bdf8",
+                background: "rgba(0, 172, 245, 0.15)",
+                border: "1px solid var(--border-highlight)",
+                color: "var(--brand-blue)",
                 borderRadius: "4px",
                 padding: "2px 6px",
                 fontSize: "0.72rem",
@@ -559,12 +600,13 @@ export default function LiveDetonationViewer({
             type="button"
             onClick={toggleFullscreen}
             style={{
-              background: "rgba(255, 255, 255, 0.06)",
-              color: "#94a3b8",
-              border: "1px solid rgba(255, 255, 255, 0.12)",
+              background: "var(--bg-card)",
+              color: "var(--text-secondary)",
+              border: "1px solid var(--border-subtle)",
               borderRadius: "4px",
               padding: "4px 8px",
-              fontSize: "0.75rem"
+              fontSize: "0.75rem",
+              cursor: "pointer"
             }}
             title="Toggle Fullscreen Detonation Chamber"
           >
@@ -576,8 +618,8 @@ export default function LiveDetonationViewer({
       {/* 2. Interactive Navigation Bar (Back, Forward, Reload, Address Bar) */}
       <div
         style={{
-          background: "#050c18",
-          borderBottom: "1px solid rgba(0, 172, 245, 0.2)",
+          background: "var(--bg-panel-header)",
+          borderBottom: "1px solid var(--border-subtle)",
           padding: "8px 16px",
           display: "flex",
           alignItems: "center",
@@ -589,9 +631,9 @@ export default function LiveDetonationViewer({
           type="button"
           onClick={handleBack}
           style={{
-            background: "rgba(255, 255, 255, 0.06)",
-            border: "1px solid rgba(255, 255, 255, 0.12)",
-            color: "#e2e8f0",
+            background: "var(--bg-card)",
+            border: "1px solid var(--border-subtle)",
+            color: "var(--text-primary)",
             borderRadius: "4px",
             padding: "4px 10px",
             fontSize: "0.85rem",
@@ -605,9 +647,9 @@ export default function LiveDetonationViewer({
           type="button"
           onClick={handleForward}
           style={{
-            background: "rgba(255, 255, 255, 0.06)",
-            border: "1px solid rgba(255, 255, 255, 0.12)",
-            color: "#e2e8f0",
+            background: "var(--bg-card)",
+            border: "1px solid var(--border-subtle)",
+            color: "var(--text-primary)",
             borderRadius: "4px",
             padding: "4px 10px",
             fontSize: "0.85rem",
@@ -621,9 +663,9 @@ export default function LiveDetonationViewer({
           type="button"
           onClick={handleReload}
           style={{
-            background: "rgba(255, 255, 255, 0.06)",
-            border: "1px solid rgba(255, 255, 255, 0.12)",
-            color: "#e2e8f0",
+            background: "var(--bg-card)",
+            border: "1px solid var(--border-subtle)",
+            color: "var(--text-primary)",
             borderRadius: "4px",
             padding: "4px 10px",
             fontSize: "0.85rem",
@@ -640,14 +682,14 @@ export default function LiveDetonationViewer({
             style={{
               display: "flex",
               alignItems: "center",
-              background: "#0a1324",
-              border: "1px solid rgba(0, 172, 245, 0.35)",
+              background: "var(--bg-input)",
+              border: "1px solid var(--border-subtle)",
               borderRadius: "6px",
               padding: "0 10px",
               flex: 1
             }}
           >
-            <span style={{ color: "#38bdf8", marginRight: "6px", fontSize: "0.8rem" }}>🔒</span>
+            <span style={{ color: "var(--brand-sky)", marginRight: "6px", fontSize: "0.8rem" }}>🔒</span>
             <input
               type="text"
               value={addressBarInput}
@@ -657,7 +699,7 @@ export default function LiveDetonationViewer({
                 background: "transparent",
                 border: "none",
                 outline: "none",
-                color: "#ffffff",
+                color: "var(--text-primary)",
                 fontFamily: "monospace",
                 fontSize: "0.82rem",
                 width: "100%",
@@ -668,9 +710,9 @@ export default function LiveDetonationViewer({
           <button
             type="submit"
             style={{
-              background: "rgba(0, 172, 245, 0.25)",
-              border: "1px solid #00acf5",
-              color: "#38bdf8",
+              background: "rgba(0, 172, 245, 0.15)",
+              border: "1px solid var(--brand-blue)",
+              color: "var(--brand-sky)",
               borderRadius: "6px",
               padding: "0 14px",
               fontSize: "0.8rem",
@@ -886,8 +928,8 @@ export default function LiveDetonationViewer({
       {showConsole && (
         <div
           style={{
-            background: "#040b17",
-            borderTop: "1px solid rgba(0, 172, 245, 0.2)",
+            background: "var(--bg-panel-header)",
+            borderTop: "1px solid var(--border-subtle)",
             padding: "8px 14px",
             maxHeight: "140px",
             overflowY: "auto",
@@ -896,17 +938,17 @@ export default function LiveDetonationViewer({
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-            <span style={{ color: "#64748b", fontWeight: 700, fontSize: "0.7rem", textTransform: "uppercase" }}>
+            <span style={{ color: "var(--text-secondary)", fontWeight: 700, fontSize: "0.7rem", textTransform: "uppercase" }}>
               ⚡ Real-Time Detonation Telemetry ({events.length} events)
             </span>
-            <span style={{ color: "#38bdf8", fontSize: "0.7rem" }}>
+            <span style={{ color: "var(--brand-sky)", fontSize: "0.7rem" }}>
               {connectionStatus === "interactive" ? "● Interactive Stream Active" : connectionStatus}
             </span>
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
             {events.length === 0 ? (
-              <span style={{ color: "#475569", fontStyle: "italic" }}>
+              <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>
                 Waiting for sandbox events...
               </span>
             ) : (
@@ -923,13 +965,13 @@ export default function LiveDetonationViewer({
                       alignItems: "flex-start",
                       gap: "6px",
                       lineHeight: "1.4",
-                      color: isError ? "#f87171" : isAction ? "#38bdf8" : "#cbd5e1"
+                      color: isError ? "var(--brand-crimson)" : isAction ? "var(--brand-sky)" : "var(--text-primary)"
                     }}
                   >
-                    <span style={{ color: "#475569", flexShrink: 0 }}>[{timeStr}]</span>
+                    <span style={{ color: "var(--text-muted)", flexShrink: 0 }}>[{timeStr}]</span>
                     <span
                       style={{
-                        color: isError ? "#ef4444" : isAction ? "#00acf5" : "#10b981",
+                        color: isError ? "var(--brand-crimson)" : isAction ? "var(--brand-blue)" : "var(--brand-emerald)",
                         fontWeight: 700,
                         flexShrink: 0
                       }}

@@ -109,7 +109,7 @@ export default function PortalLanding({
             }}
             onClick={() => handleGatewayAction("url_scanner", onLaunchStudio)}
           >
-            🚀 Launch Sandbox Studio (ANY.RUN)
+            🚀 Launch Detonation Studio
           </button>
           <button
             type="button"
@@ -216,7 +216,7 @@ export default function PortalLanding({
                 Interactive Threat Sandbox Studio
               </h3>
               <p style={{ margin: "0 0 16px", color: "#94a3b8", fontSize: "0.85rem", lineHeight: "1.5" }}>
-                ANY.RUN-style live URL detonation chamber with real-time browser screencasting, anti-cloaking
+                BrowseGuard interactive live URL detonation chamber with real-time browser screencasting, anti-cloaking
                 CAPTCHA bypass, and deep forensic drawer.
               </p>
 

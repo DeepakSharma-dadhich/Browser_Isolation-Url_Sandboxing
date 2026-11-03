@@ -7,6 +7,7 @@ const { DEFAULT_ORG_ID } = require("../services/analysisRepository");
 const { submitAnalysis } = require("../services/vmAgent.service");
 const { sendTestWebhookPing } = require("../services/webhookDispatcher");
 const { parseRawEml } = require("../services/emlParser.service");
+const { evaluateEmailForFastPass } = require("../services/trustedVendor.service");
 
 // URL extraction regex matching standard web links in HTML or plain text
 const URL_REGEX = /https?:\/\/[^\s<>"'{}|\\^`]+/gi;
@@ -162,6 +163,36 @@ async function extractAndDetonateEmailLinks(req, res, next) {
       });
     }
 
+    // Check if the email qualifies for Trusted Vendor & Invoice Fast-Pass
+    const fastPassResult = await evaluateEmailForFastPass({
+      sender,
+      subject,
+      authResults: req.body?.auth_results || { dkim: "pass", spf: "pass" },
+      links: cleanedUrls,
+      organizationId: orgId
+    });
+
+    if (fastPassResult.fastPass) {
+      return res.status(200).json({
+        success: true,
+        fast_pass: true,
+        verdict: "SAFE",
+        risk_score: 0,
+        recommended_action: "ALLOW",
+        decision_policy: "FAST_PASS_TRUSTED_VENDOR",
+        vendor_name: fastPassResult.vendor_name,
+        message: `Fast-Pass Approved: Email from trusted vendor '${fastPassResult.vendor_name}' bypassed sandbox detention.`,
+        reason: fastPassResult.reason,
+        extracted_count: cleanedUrls.length,
+        links: cleanedUrls.map((u) => ({
+          url: u,
+          verdict: "SAFE",
+          action: "ALLOW",
+          fast_pass: true
+        }))
+      });
+    }
+
     const hostOrigin = req.protocol + "://" + req.get("host");
 
     // Enqueue each URL into BrowseGuard sandbox queue
@@ -246,6 +277,28 @@ async function parseEmlEndpoint(req, res, next) {
     }
 
     const parsed = parseRawEml(contentToParse);
+
+    // Evaluate against Trusted Vendor & Invoicing Fast-Pass Policies
+    const orgId = req.orgId || DEFAULT_ORG_ID;
+    const fastPassResult = await evaluateEmailForFastPass({
+      sender: parsed.email_summary?.from?.raw || parsed.email_summary?.from?.address,
+      subject: parsed.email_summary?.subject,
+      authResults: parsed.email_summary?.auth_results || {},
+      links: (parsed.extracted_links || []).map((l) => l.url),
+      attachments: parsed.email_summary?.attachments || [],
+      organizationId: orgId
+    });
+
+    parsed.fast_pass = {
+      is_eligible: fastPassResult.fastPass,
+      ...fastPassResult
+    };
+
+    if (fastPassResult.fastPass) {
+      parsed.email_summary.verdict = "FAST_PASS_CLEAN";
+      parsed.email_summary.threat_score = 0;
+    }
+
     return res.status(200).json(parsed);
   } catch (err) {
     return next(err);

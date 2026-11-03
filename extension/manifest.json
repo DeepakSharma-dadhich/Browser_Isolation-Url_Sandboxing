@@ -5,7 +5,9 @@
   "description": "Enterprise browser isolation and dynamic link threat analysis for webmail and browsing.",
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "contextMenus",
+    "scripting"
   ],
   "host_permissions": [
     "http://localhost:3000/*",

@@ -54,7 +54,7 @@ async function runVerification() {
   }
   console.log("\n✓ Worker completed scan! Status:", statusData.status, "Verdict:", statusData.verdict);
 
-  // 4. Test ANY.RUN-inspired IOCs & MITRE ATT&CK Extraction Endpoint
+  // 4. Test BrowseGuard Indicators of Compromise & MITRE ATT&CK Extraction Endpoint
   console.log("\n[Test 4] Querying GET /api/v1/analyses/:id/iocs...");
   const iocsRes = await axios.get(`${BASE_URL}/api/v1/analyses/${analysisId}/iocs`);
   console.log("✓ IOCs & Threat Intelligence Bundle Received:");
@@ -78,7 +78,7 @@ async function runVerification() {
   console.log("  Status:", row.status);
 
   console.log("\n=======================================================");
-  console.log("ALL ENTERPRISE PIPELINE & ANY.RUN ENHANCEMENTS VERIFIED 100%!");
+  console.log("ALL ENTERPRISE PIPELINE & BROWSEGUARD ENHANCEMENTS VERIFIED 100%!");
   console.log("=======================================================");
   await pool.end();
 }

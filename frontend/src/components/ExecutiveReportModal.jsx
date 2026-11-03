@@ -54,25 +54,29 @@ export default function ExecutiveReportModal({
 
     let isMounted = true;
     const fetchFullReport = async () => {
-      if (reportData && iocsData) {
+      if (reportData) {
         setInternalReport(reportData);
+      }
+      if (iocsData) {
         setInternalIocs(iocsData);
+      }
+      if (reportData && iocsData) {
         return;
       }
 
-      setLoading(true);
+      setLoading(!reportData);
       try {
         const [repRes, iocRes] = await Promise.all([
-          fetch(`/api/v1/analyses/${encodeURIComponent(analysisId)}`),
-          fetch(`/api/v1/analyses/${encodeURIComponent(analysisId)}/iocs`)
+          !reportData ? fetch(`/api/v1/analyses/${encodeURIComponent(analysisId)}`) : Promise.resolve(null),
+          !iocsData ? fetch(`/api/v1/analyses/${encodeURIComponent(analysisId)}/iocs`) : Promise.resolve(null)
         ]);
 
         if (isMounted) {
-          if (repRes.ok) {
+          if (repRes && repRes.ok) {
             const payload = await repRes.json();
             setInternalReport(payload.data || payload);
           }
-          if (iocRes.ok) {
+          if (iocRes && iocRes.ok) {
             const payload = await iocRes.json();
             setInternalIocs(payload.data || payload);
           }
@@ -416,10 +420,10 @@ export default function ExecutiveReportModal({
         style={{
           width: "min(1240px, 98vw)",
           maxHeight: "92vh",
-          background: "#081022",
-          border: "1px solid rgba(0, 172, 245, 0.35)",
+          background: "var(--bg-panel)",
+          border: "1px solid var(--border-subtle)",
           borderRadius: "14px",
-          boxShadow: "0 25px 60px -15px rgba(0, 0, 0, 0.95), 0 0 40px rgba(0, 172, 245, 0.15)",
+          boxShadow: "var(--shadow-panel)",
           display: "flex",
           flexDirection: "column",
           overflow: "hidden"
@@ -430,8 +434,8 @@ export default function ExecutiveReportModal({
           className="no-print"
           style={{
             padding: "14px 24px",
-            background: "#050b18",
-            borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+            background: "var(--bg-panel-header)",
+            borderBottom: "1px solid var(--border-subtle)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -458,7 +462,7 @@ export default function ExecutiveReportModal({
             </div>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#fff", letterSpacing: "-0.01em" }}>
+                <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
                   Executive Incident Response Threat Brief
                 </h3>
                 <span
@@ -828,7 +832,7 @@ export default function ExecutiveReportModal({
 
 
         {/* Scrollable Report Document Body */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "28px 36px", background: "#071020" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "28px 36px", background: "var(--bg-canvas)" }}>
           {loading ? (
             <div style={{ padding: "60px", textAlign: "center", color: "#94a3b8" }}>
               <div style={{ fontSize: "2rem", marginBottom: "12px" }}>⏳</div>

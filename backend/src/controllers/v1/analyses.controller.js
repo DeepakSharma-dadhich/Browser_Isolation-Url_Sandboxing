@@ -350,7 +350,7 @@ async function getAnalysisIocsV1(req, res, next) {
 /**
  * GET /api/v1/analyses/:id/har
  *
- * Download full network stream HTTP Archive (HAR) log for ANY.RUN-style packet analysis.
+ * Download full network stream HTTP Archive (HAR) log for deep packet forensic analysis.
  */
 async function getAnalysisHarV1(req, res, next) {
   try {

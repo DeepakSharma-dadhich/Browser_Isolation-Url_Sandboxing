@@ -12,7 +12,11 @@ import ApiTerminalModal from "./components/ApiTerminalModal";
 import ExecutiveReportModal from "./components/ExecutiveReportModal";
 import LiveDetonationViewer from "./components/LiveDetonationViewer";
 import AccountSettingsModal from "./components/AccountSettingsModal";
+import UserManagementModal from "./components/UserManagementModal";
+import LoginModal from "./components/LoginModal";
 import AdminConsole from "./components/AdminConsole";
+import ScanVerdictBanner from "./components/ScanVerdictBanner";
+import TrustedVendorsModal from "./components/TrustedVendorsModal";
 
 const POLL_INTERVAL_MS = 2000;
 const MAX_POLL_ATTEMPTS = 180;
@@ -163,16 +167,13 @@ function App() {
       const saved = localStorage.getItem("bg_current_user");
       if (saved) return JSON.parse(saved);
     } catch {}
-    return {
-      email: "admin@browseguard.local",
-      fullName: "Security Administrator",
-      role: "ADMIN",
-      extensionToken: "bg_ext_admin_live_token_777",
-      organizationName: "Default Organization"
-    };
+    return null;
   });
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const [userManagementTab, setUserManagementTab] = useState("profile");
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [authModalTab, setAuthModalTab] = useState("profile");
   const [authModalGateway, setAuthModalGateway] = useState("url_scanner");
   const [showApiTerminal, setShowApiTerminal] = useState(false);
@@ -181,12 +182,82 @@ function App() {
   const [subscriptions, setSubscriptions] = useState(null);
   const [gatewayError, setGatewayError] = useState(null);
   const [iocsData, setIocsData] = useState(null);
-  const [showLiveViewer, setShowLiveViewer] = useState(true);
+  const [showLiveViewer, setShowLiveViewer] = useState(false);
+  const [showTrustedVendors, setShowTrustedVendors] = useState(false);
+
+  // Theme Engine: "dark" (Obsidian Cyber) | "light" (VS Code Clean Slate)
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem("bg_theme") || "dark";
+    } catch {
+      return "dark";
+    }
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    try {
+      localStorage.setItem("bg_theme", theme);
+    } catch {}
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
+  // Authenticate session and retrieve verified claims on mount
+  useEffect(() => {
+    const initAuthSession = async () => {
+      // If user explicitly signed out, do NOT auto-login
+      if (localStorage.getItem("bg_signed_out") === "true") {
+        setCurrentUser(null);
+        return;
+      }
+
+      const token = localStorage.getItem("bg_jwt_token");
+      if (token) {
+        try {
+          const res = await fetch("/api/v1/auth/me", {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const u = data.data;
+            const updated = {
+              id: u.id,
+              email: u.email,
+              fullName: u.fullName || u.full_name,
+              role: u.role,
+              extensionToken: u.extensionToken || u.extension_token,
+              organizationName: u.organizationName || u.organization_name || "Default Organization"
+            };
+            setCurrentUser(updated);
+            localStorage.setItem("bg_current_user", JSON.stringify(updated));
+            return;
+          }
+        } catch {
+          // Token invalid or expired
+          localStorage.removeItem("bg_jwt_token");
+          localStorage.removeItem("bg_current_user");
+          setCurrentUser(null);
+          return;
+        }
+      }
+
+      // If no valid token exists, stay in unauthenticated guest mode
+      setCurrentUser(null);
+    };
+
+    initAuthSession();
+  }, []);
 
   const fetchSubscriptions = async () => {
     try {
       const token = localStorage.getItem("bg_jwt_token");
-      if (!token) return;
+      if (!token) {
+        setSubscriptions(null);
+        return;
+      }
       const resp = await fetch("/api/v1/auth/subscriptions", {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -205,9 +276,21 @@ function App() {
 
   const handleUpdateUser = (user) => {
     setCurrentUser(user);
-    try {
-      localStorage.setItem("bg_current_user", JSON.stringify(user));
-    } catch {}
+    if (user) {
+      try {
+        localStorage.setItem("bg_current_user", JSON.stringify(user));
+        localStorage.removeItem("bg_signed_out");
+      } catch {}
+    } else {
+      localStorage.removeItem("bg_current_user");
+      localStorage.removeItem("bg_jwt_token");
+      localStorage.removeItem("bg_ext_token");
+      localStorage.setItem("bg_signed_out", "true");
+      setSubscriptions(null);
+      if (activeTab === "admin") {
+        setActiveTab("soc_hub");
+      }
+    }
     fetchSubscriptions();
   };
 
@@ -280,18 +363,29 @@ function App() {
     };
   }, []);
 
-  // Auto-launch Click-Time Remote Browser Isolation if URL query parameter is supplied
+  // Auto-launch Click-Time Remote Browser Isolation, past session inspection, or scan prefill
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const isolateParam =
         params.get("isolate") ||
+        params.get("rbi") ||
         (window.location.pathname.includes("isolate") ? params.get("url") : null) ||
         (params.get("url") && window.location.search.includes("isolate") ? params.get("url") : null);
 
+      const sessionParam = params.get("session") || params.get("id");
+      const scanParam = params.get("scan") || (!isolateParam && !sessionParam ? params.get("url") : null);
+
       if (isolateParam) {
-        setRbiTargetUrl(isolateParam);
+        const decoded = decodeURIComponent(isolateParam);
+        setRbiTargetUrl(decoded);
         setRbiActive(true);
+        setActiveTab("scanner");
+      } else if (sessionParam) {
+        openPastScan(sessionParam);
+      } else if (scanParam) {
+        const decoded = decodeURIComponent(scanParam);
+        setUrl(decoded);
         setActiveTab("scanner");
       }
     } catch {
@@ -671,7 +765,7 @@ function App() {
     malicious: historyList.filter((r) => ["MALICIOUS", "HIGH_RISK"].includes(r.verdict)).length,
   };
 
-  // 1. Marketing / Commercial SaaS Landing Page (ANY.RUN Image 2 style)
+  // 1. Marketing / Commercial SaaS Landing Page
   if (activeTab === "landing") {
     return (
       <>
@@ -679,13 +773,38 @@ function App() {
           onLaunchStudio={() => setActiveTab("soc_hub")}
           onOpenEmailGateway={() => setActiveTab("email_gateway")}
           onOpenAuthModal={(tab = "profile") => {
-            setAuthModalTab(tab);
-            setShowAuthModal(true);
+            if (tab === "login" || tab === "register") {
+              setShowLoginModal(true);
+            } else if (["profile", "team", "switcher", "quotas"].includes(tab)) {
+              setUserManagementTab(tab);
+              setShowAccountSettings(true);
+            } else {
+              setAuthModalTab(tab);
+              setShowAuthModal(true);
+            }
           }}
           onViewHistory={() => setActiveTab("history")}
           subscriptions={subscriptions}
           currentUser={currentUser}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
+
+        {showAccountSettings && (
+          <UserManagementModal
+            currentUser={currentUser}
+            initialTab={userManagementTab}
+            onUpdateUser={handleUpdateUser}
+            onClose={() => setShowAccountSettings(false)}
+          />
+        )}
+
+        {showLoginModal && (
+          <LoginModal
+            onLoginSuccess={handleUpdateUser}
+            onClose={() => setShowLoginModal(false)}
+          />
+        )}
 
         {showAuthModal && (
           <AuthModal
@@ -704,7 +823,8 @@ function App() {
 
         {rbiActive && (
           <LiveIsolationModal
-            targetUrl={rbiTargetUrl}
+            initialUrl={rbiTargetUrl || url || "https://example.com"}
+            targetUrl={rbiTargetUrl || url || "https://example.com"}
             currentUser={currentUser}
             onClose={() => setRbiActive(false)}
           />
@@ -713,7 +833,7 @@ function App() {
     );
   }
 
-  // 2. Authentic ANY.RUN SOC Application Workspace (Image 1 style)
+  // 2. BrowseGuard SOC Application Workspace
   if (activeTab === "soc_hub") {
     return (
       <>
@@ -726,15 +846,40 @@ function App() {
           }}
           onOpenHistory={() => setActiveTab("history")}
           onOpenAuthModal={(tab = "profile") => {
-            setAuthModalTab(tab);
-            setShowAuthModal(true);
+            if (tab === "login" || tab === "register") {
+              setShowLoginModal(true);
+            } else if (["profile", "team", "switcher", "quotas"].includes(tab)) {
+              setUserManagementTab(tab);
+              setShowAccountSettings(true);
+            } else {
+              setAuthModalTab(tab);
+              setShowAuthModal(true);
+            }
           }}
           onOpenApiTerminal={() => setShowApiTerminal(true)}
           onNavigateToLanding={() => setActiveTab("landing")}
           subscriptions={subscriptions}
           currentUser={currentUser}
           activeSubTab="hub"
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
+
+        {showAccountSettings && (
+          <UserManagementModal
+            currentUser={currentUser}
+            initialTab={userManagementTab}
+            onUpdateUser={handleUpdateUser}
+            onClose={() => setShowAccountSettings(false)}
+          />
+        )}
+
+        {showLoginModal && (
+          <LoginModal
+            onLoginSuccess={handleUpdateUser}
+            onClose={() => setShowLoginModal(false)}
+          />
+        )}
 
         {showAuthModal && (
           <AuthModal
@@ -754,7 +899,8 @@ function App() {
 
         {rbiActive && (
           <LiveIsolationModal
-            targetUrl={rbiTargetUrl}
+            initialUrl={rbiTargetUrl || url || "https://example.com"}
+            targetUrl={rbiTargetUrl || url || "https://example.com"}
             currentUser={currentUser}
             onClose={() => setRbiActive(false)}
           />
@@ -785,7 +931,7 @@ function App() {
 
   // 3. Operational SOC Views: Detonation Studio (Concept 1), Email Gateway, or Past History
   return (
-    <div style={{ minHeight: "100vh", background: "#071020", color: "#f8fafc" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-space)", color: "var(--text-primary)", transition: "background 0.2s ease, color 0.2s ease" }}>
       {/* Top Persistent SOC Workspace Navigation Bar */}
       <header className="soc-top-navbar">
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
@@ -875,37 +1021,336 @@ function App() {
               >
                 🔑 API Keys & BYOK
               </button>
+
+              <button
+                type="button"
+                className="preset-pill"
+                onClick={() => setShowTrustedVendors(true)}
+                style={{ background: "rgba(16, 185, 129, 0.15)", border: "1px solid rgba(16, 185, 129, 0.4)", color: "#10b981", fontWeight: 700 }}
+                title="Manage Trusted Partners & Invoicing Fast-Pass Policies"
+              >
+                🏢 Trusted Vendors & Fast-Pass
+              </button>
             </>
           )}
 
           <button
             type="button"
             className="preset-pill"
-            onClick={() => setShowAccountSettings(true)}
+            onClick={() => {
+              setUserManagementTab("quotas");
+              setShowAccountSettings(true);
+            }}
             style={{ background: "rgba(15, 23, 42, 0.8)", border: "1px solid rgba(0, 172, 245, 0.35)" }}
             title="View personal gateway quota"
           >
             <span>🖥️ Quota:</span>
             <strong style={{ color: "#38bdf8" }}>
-              {currentUser?.role === "ADMIN" || currentUser?.role === "OWNER" ? "Unlimited" : `${subscriptions?.url_scanner?.quota_remaining ?? 20} Left`}
+              {currentUser?.role === "ADMIN" || currentUser?.role === "OWNER" ? "Unlimited" : `${subscriptions?.url_scanner?.quota_remaining ?? 50} Left`}
             </strong>
           </button>
 
+          {/* User & Identity Profile Pill with Interactive Dropdown */}
+          <div style={{ position: "relative" }}>
+            {currentUser ? (
+              <button
+                type="button"
+                className="preset-pill"
+                onClick={() => setShowUserDropdown(!showUserDropdown)}
+                style={{
+                  background: showUserDropdown
+                    ? "rgba(0, 172, 245, 0.25)"
+                    : "rgba(15, 23, 42, 0.8)",
+                  border: `1px solid ${
+                    currentUser?.role === "ADMIN" || currentUser?.role === "OWNER"
+                      ? "rgba(14, 165, 233, 0.4)"
+                      : "rgba(16, 185, 129, 0.4)"
+                  }`,
+                  color: "#f8fafc",
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  cursor: "pointer"
+                }}
+                title="Manage profile, team access, and role switching"
+              >
+                <span>
+                  {currentUser?.role === "ADMIN" || currentUser?.role === "OWNER"
+                    ? "🛡️"
+                    : currentUser?.role === "VIEWER"
+                    ? "📄"
+                    : "👤"}
+                </span>
+                <span>{currentUser?.fullName || "Active User"}</span>
+                <span
+                  style={{
+                    background:
+                      currentUser?.role === "ADMIN" || currentUser?.role === "OWNER"
+                        ? "rgba(14, 165, 233, 0.2)"
+                        : currentUser?.role === "VIEWER"
+                        ? "rgba(148, 163, 184, 0.2)"
+                        : "rgba(16, 185, 129, 0.2)",
+                    color:
+                      currentUser?.role === "ADMIN" || currentUser?.role === "OWNER"
+                        ? "#38bdf8"
+                        : currentUser?.role === "VIEWER"
+                        ? "#cbd5e1"
+                        : "#34d399",
+                    padding: "1px 6px",
+                    borderRadius: "6px",
+                    fontSize: "0.7rem",
+                    fontWeight: 800
+                  }}
+                >
+                  {currentUser?.role || "ANALYST"}
+                </span>
+                <span style={{ fontSize: "0.7rem", opacity: 0.7 }}>▾</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="preset-pill"
+                onClick={() => setShowLoginModal(true)}
+                style={{
+                  background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
+                  border: "none",
+                  color: "#fff",
+                  fontWeight: 800,
+                  padding: "6px 14px",
+                  cursor: "pointer"
+                }}
+              >
+                🔐 Sign In / Register
+              </button>
+            )}
+
+            {/* Dropdown Menu */}
+            {showUserDropdown && currentUser && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 8px)",
+                  right: 0,
+                  width: "280px",
+                  background: "#0d1527",
+                  border: "1px solid rgba(0, 172, 245, 0.3)",
+                  borderRadius: "12px",
+                  boxShadow: "0 15px 35px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 172, 245, 0.15)",
+                  padding: "12px",
+                  zIndex: 9999,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "4px"
+                }}
+              >
+                {/* User Info Header */}
+                <div
+                  style={{
+                    padding: "8px 10px 12px 10px",
+                    borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                    marginBottom: "4px"
+                  }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#f8fafc" }}>
+                    {currentUser.fullName}
+                  </div>
+                  <div style={{ fontSize: "0.78rem", color: "#94a3b8", wordBreak: "break-all" }}>
+                    {currentUser.email}
+                  </div>
+                  <div style={{ marginTop: "4px", fontSize: "0.72rem", color: "#38bdf8" }}>
+                    Org: {currentUser.organizationName || "Default Organization"}
+                  </div>
+                </div>
+
+                {/* Menu Items */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserManagementTab("profile");
+                    setShowAccountSettings(true);
+                    setShowUserDropdown(false);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "8px 10px",
+                    background: "transparent",
+                    border: "none",
+                    borderRadius: "6px",
+                    color: "#cbd5e1",
+                    fontSize: "0.82rem",
+                    fontWeight: 600,
+                    textAlign: "left",
+                    cursor: "pointer",
+                    transition: "background 0.15s"
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <span>👤</span> My Profile & Security
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserManagementTab("team");
+                    setShowAccountSettings(true);
+                    setShowUserDropdown(false);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "8px 10px",
+                    background: "transparent",
+                    border: "none",
+                    borderRadius: "6px",
+                    color: "#cbd5e1",
+                    fontSize: "0.82rem",
+                    fontWeight: 600,
+                    textAlign: "left",
+                    cursor: "pointer",
+                    transition: "background 0.15s"
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <span>👥</span> Team Directory & Roles
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserManagementTab("switcher");
+                    setShowAccountSettings(true);
+                    setShowUserDropdown(false);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "8px 10px",
+                    background: "transparent",
+                    border: "none",
+                    borderRadius: "6px",
+                    color: "#c084fc",
+                    fontSize: "0.82rem",
+                    fontWeight: 600,
+                    textAlign: "left",
+                    cursor: "pointer",
+                    transition: "background 0.15s"
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(168, 85, 247, 0.1)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <span>⚡</span> Fast Role Switcher
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserManagementTab("quotas");
+                    setShowAccountSettings(true);
+                    setShowUserDropdown(false);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "8px 10px",
+                    background: "transparent",
+                    border: "none",
+                    borderRadius: "6px",
+                    color: "#34d399",
+                    fontSize: "0.82rem",
+                    fontWeight: 600,
+                    textAlign: "left",
+                    cursor: "pointer",
+                    transition: "background 0.15s"
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(16, 185, 129, 0.1)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <span>🛡️</span> Quotas & Subscriptions
+                </button>
+
+                <div style={{ height: "1px", background: "rgba(255, 255, 255, 0.08)", margin: "4px 0" }} />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLoginModal(true);
+                    setShowUserDropdown(false);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "8px 10px",
+                    background: "transparent",
+                    border: "none",
+                    borderRadius: "6px",
+                    color: "#38bdf8",
+                    fontSize: "0.82rem",
+                    fontWeight: 600,
+                    textAlign: "left",
+                    cursor: "pointer",
+                    transition: "background 0.15s"
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(14, 165, 233, 0.1)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <span>🔑</span> Sign In as Another Account
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleUpdateUser(null);
+                    setShowUserDropdown(false);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "8px 10px",
+                    background: "transparent",
+                    border: "none",
+                    borderRadius: "6px",
+                    color: "#f87171",
+                    fontSize: "0.82rem",
+                    fontWeight: 600,
+                    textAlign: "left",
+                    cursor: "pointer",
+                    transition: "background 0.15s"
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <span>⎋</span> Sign Out
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Theme Switcher Toggle */}
           <button
             type="button"
-            className="preset-pill"
-            onClick={() => setShowAccountSettings(true)}
-            style={{ background: "rgba(15, 23, 42, 0.8)", border: "1px solid rgba(255, 255, 255, 0.2)", color: "#f8fafc", fontWeight: 700 }}
-            title="Open Account & Profile Settings"
+            className="theme-toggle-btn"
+            onClick={toggleTheme}
+            title={`Switch to ${theme === "dark" ? "Light Mode (Clean Slate)" : "Dark Mode (Obsidian Cyber)"}`}
           >
-            👤 {currentUser?.fullName || "Admin"} ({currentUser?.role || "ADMIN"})
+            <span className="theme-icon">{theme === "dark" ? "🌙" : "☀️"}</span>
+            <span>{theme === "dark" ? "Dark" : "Light"}</span>
           </button>
 
           <button
             type="button"
             className="preset-pill"
             onClick={() => setActiveTab("landing")}
-            style={{ background: "transparent", border: "1px solid rgba(255, 255, 255, 0.2)", color: "#cbd5e1" }}
+            style={{ background: "transparent", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)" }}
             title="View Commercial Landing Page"
           >
             🏠 Commercial Site ↗
@@ -920,13 +1365,13 @@ function App() {
           <section className="panel">
             {/* Mode Switcher: Single vs Batch */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
-              <div style={{ display: "flex", gap: "8px", background: "rgba(15, 23, 42, 0.6)", padding: "4px", borderRadius: "8px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
+              <div style={{ display: "flex", gap: "8px", background: "var(--bg-card)", padding: "4px", borderRadius: "8px", border: "1px solid var(--border-subtle)" }}>
                 <button
                   type="button"
                   onClick={() => setScanType("single")}
                   style={{
-                    background: scanType === "single" ? "#00acf5" : "transparent",
-                    color: scanType === "single" ? "#fff" : "#94a3b8",
+                    background: scanType === "single" ? "var(--brand-blue)" : "transparent",
+                    color: scanType === "single" ? "#fff" : "var(--text-secondary)",
                     border: "none",
                     padding: "6px 14px",
                     borderRadius: "6px",
@@ -941,8 +1386,8 @@ function App() {
                   type="button"
                   onClick={() => setScanType("batch")}
                   style={{
-                    background: scanType === "batch" ? "#00acf5" : "transparent",
-                    color: scanType === "batch" ? "#fff" : "#94a3b8",
+                    background: scanType === "batch" ? "var(--brand-blue)" : "transparent",
+                    color: scanType === "batch" ? "#fff" : "var(--text-secondary)",
                     border: "none",
                     padding: "6px 14px",
                     borderRadius: "6px",
@@ -987,7 +1432,7 @@ function App() {
                 )}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                   <label htmlFor="url" style={{ margin: 0 }}>Target URL to inspect in isolation</label>
-                  <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Fast queue ~5-8s • Sandbox isolation active</span>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Fast queue ~5-8s • Sandbox isolation active</span>
                 </div>
                 <div className="url-input-row">
                   <input
@@ -1015,7 +1460,7 @@ function App() {
                     disabled={isSubmitting || currentUser?.role === "VIEWER"}
                     title={currentUser?.role === "VIEWER" ? "Viewers cannot trigger interactive detonations" : "Launch zero-trust interactive browser isolation chamber with mouse & keyboard controls"}
                   >
-                    🖥️ Interactive Detonation (ANY.RUN)
+                    🖥️ Interactive Detonation (BrowseGuard)
                   </button>
                 </div>
               </form>
@@ -1039,10 +1484,10 @@ function App() {
                   </div>
                 )}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                  <label style={{ margin: 0, fontWeight: 700, fontSize: "0.9rem", color: "#e2e8f0" }}>
+                  <label style={{ margin: 0, fontWeight: 700, fontSize: "0.9rem", color: "var(--text-primary)" }}>
                     Paste Multiple URLs to Detonate Concurrently
                   </label>
-                  <span style={{ fontSize: "0.75rem", color: "#64748b" }}>One URL per line • Parallel queue execution</span>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>One URL per line • Parallel queue execution</span>
                 </div>
                 <textarea
                   value={batchUrlsInput}
@@ -1051,11 +1496,11 @@ function App() {
                   rows={4}
                   style={{
                     width: "100%",
-                    background: "#080f20",
-                    border: "1px solid rgba(0, 172, 245, 0.35)",
+                    background: "var(--bg-input)",
+                    border: "1px solid var(--border-subtle)",
                     borderRadius: "8px",
                     padding: "12px",
-                    color: "#ffffff",
+                    color: "var(--text-primary)",
                     fontFamily: "monospace",
                     fontSize: "0.85rem",
                     outline: "none",
@@ -1071,8 +1516,8 @@ function App() {
                     disabled={isBatchRunning || !batchUrlsInput.trim() || currentUser?.role === "VIEWER"}
                     title={currentUser?.role === "VIEWER" ? "Viewers cannot trigger batch scans" : "Launch batch sandbox detonation"}
                     style={{
-                      background: currentUser?.role === "VIEWER" ? "#334155" : "linear-gradient(135deg, #00acf5 0%, #0284c7 100%)",
-                      color: currentUser?.role === "VIEWER" ? "#94a3b8" : "#fff",
+                      background: currentUser?.role === "VIEWER" ? "var(--bg-card)" : "linear-gradient(135deg, #00acf5 0%, #0284c7 100%)",
+                      color: currentUser?.role === "VIEWER" ? "var(--text-muted)" : "#fff",
                       border: "none",
                       padding: "8px 20px",
                       borderRadius: "6px",
@@ -1100,14 +1545,14 @@ function App() {
                         setBatchUrlsInput(failedUrls);
                       }}
                       className="preset-pill"
-                      style={{ padding: "6px 14px", fontSize: "0.8rem", color: "#38bdf8", border: "1px solid #38bdf8" }}
+                      style={{ padding: "6px 14px", fontSize: "0.8rem", color: "var(--brand-blue)", border: "1px solid var(--border-highlight)" }}
                       title="Load all failed targets into the box to retry"
                     >
                       🔄 Load Failed to Retry
                     </button>
                   )}
                   {batchQueue.length > 0 && (
-                    <span style={{ fontSize: "0.85rem", color: "#38bdf8", marginLeft: "auto", fontFamily: "monospace" }}>
+                    <span style={{ fontSize: "0.85rem", color: "var(--brand-blue)", marginLeft: "auto", fontFamily: "monospace" }}>
                       Completed {batchQueue.filter(q => q.status === "COMPLETED").length} of {batchQueue.length} Targets
                     </span>
                   )}
@@ -1115,9 +1560,9 @@ function App() {
 
                 {batchQueue.length > 0 && (
                   <div style={{ marginTop: "18px", overflowX: "auto" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem", background: "#060d1b", borderRadius: "8px", overflow: "hidden", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem", background: "var(--bg-panel)", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border-subtle)" }}>
                       <thead>
-                        <tr style={{ background: "rgba(0, 172, 245, 0.12)", textAlign: "left", color: "#94a3b8" }}>
+                        <tr style={{ background: "var(--bg-panel-header)", textAlign: "left", color: "var(--text-secondary)" }}>
                           <th style={{ padding: "10px 14px" }}>#</th>
                           <th style={{ padding: "10px 14px" }}>Target URL</th>
                           <th style={{ padding: "10px 14px" }}>Status</th>
@@ -1128,7 +1573,7 @@ function App() {
                       </thead>
                       <tbody>
                         {batchQueue.map((item, idx) => (
-                          <tr key={item.id} style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.05)" }}>
+                          <tr key={item.id} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
                             <td style={{ padding: "10px 14px", color: "#64748b" }}>{idx + 1}</td>
                             <td style={{ padding: "10px 14px", fontFamily: "monospace", maxWidth: "340px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={item.url}>
                               {item.url}
@@ -1384,7 +1829,7 @@ function App() {
 
           {result && (
             <section style={{ marginTop: "24px" }}>
-              {/* ANY.RUN Top Execution HUD Strip */}
+              {/* BrowseGuard Top Execution HUD Strip */}
               <div className="anyrun-hud">
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -1524,7 +1969,21 @@ function App() {
                 />
               )}
 
-              {/* ANY.RUN Dual-Pane Split Workspace */}
+              {/* Plain-English vs SOC Analyst Dual-Perspective Verdict Banner */}
+              <ScanVerdictBanner
+                result={result}
+                findings={findings}
+                onLaunchRbi={() => {
+                  setRbiTargetUrl(result.final_url || result.submitted_url || url);
+                  setRbiActive(true);
+                }}
+                onOpenReport={() => {
+                  setExecutiveReportTargetId(sessionId);
+                  setShowExecutiveReport(true);
+                }}
+              />
+
+              {/* BrowseGuard Dual-Pane Split Workspace */}
               <div className="anyrun-split">
                 {/* Left Column: Sandbox Screen Viewport */}
                 <div className="anyrun-viewport-card">
@@ -1701,7 +2160,7 @@ function App() {
                     />
                   )}
 
-                  {/* TAB 2: ANY.RUN-inspired IOCs & MITRE ATT&CK Matrix */}
+                  {/* TAB 2: Indicators of Compromise & MITRE ATT&CK Matrix */}
                   {activeDrawerTab === "iocs" && (
                     <IocPanel analysisId={sessionId} iocsData={iocsData} />
                   )}
@@ -1980,7 +2439,8 @@ function App() {
 
     {rbiActive && (
       <LiveIsolationModal
-        initialUrl={rbiTargetUrl || url}
+        initialUrl={rbiTargetUrl || url || "https://example.com"}
+        targetUrl={rbiTargetUrl || url || "https://example.com"}
         onClose={() => setRbiActive(false)}
       />
     )}
@@ -2022,18 +2482,29 @@ function App() {
     )}
 
     {showAccountSettings && (
-      <AccountSettingsModal
+      <UserManagementModal
         currentUser={currentUser}
+        initialTab={userManagementTab}
         onUpdateUser={(updated) => {
           handleUpdateUser(updated);
         }}
         onClose={() => setShowAccountSettings(false)}
-        onLogout={() => {
-          setShowAccountSettings(false);
-          localStorage.removeItem("bg_jwt_token");
-          localStorage.removeItem("bg_current_user");
-          window.location.reload();
+      />
+    )}
+
+    {showLoginModal && (
+      <LoginModal
+        onLoginSuccess={(user) => {
+          handleUpdateUser(user);
         }}
+        onClose={() => setShowLoginModal(false)}
+      />
+    )}
+
+    {showTrustedVendors && (
+      <TrustedVendorsModal
+        isOpen={showTrustedVendors}
+        onClose={() => setShowTrustedVendors(false)}
       />
     )}
     </main>

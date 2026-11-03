@@ -40,8 +40,79 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (stored.threatStats) {
     threatStats = stored.threatStats;
   }
-  console.log("[BrowseGuard Shield] Extension installed and initialized with Smart Whitelisting.");
+
+  // Register right-click context menu options for links and selected text
+  if (chrome.contextMenus) {
+    chrome.contextMenus.removeAll(() => {
+      chrome.contextMenus.create({
+        id: "bg-check-in-page",
+        title: "🛡️ Check Link / URL Safety (In-Page)",
+        contexts: ["link", "selection"]
+      });
+      chrome.contextMenus.create({
+        id: "bg-isolate-link",
+        title: "⚡ Open in Isolated Sandbox (New Tab)",
+        contexts: ["link", "selection"]
+      });
+    });
+  }
+
+  console.log("[BrowseGuard Shield] Extension installed with In-Page Link Safety & Selection Context Menus.");
 });
+
+// Handle context menu clicks
+if (chrome.contextMenus && chrome.contextMenus.onClicked) {
+  chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+    let targetUrl = info.linkUrl || (info.selectionText ? info.selectionText.trim() : "");
+    if (!targetUrl) return;
+
+    // Defanged URL or raw IP handling (e.g. hxxp:// -> http://, or 182.114.193.129:58877/bin.sh)
+    targetUrl = targetUrl.replace(/^hxxps?:\/\//i, (m) => m.toLowerCase().startsWith("hxxps") ? "https://" : "http://");
+    if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+      if (/^(\d{1,3}\.){3}\d{1,3}/.test(targetUrl) || targetUrl.includes(".")) {
+        targetUrl = "http://" + targetUrl;
+      }
+    }
+
+    const config = await getConfig();
+    const dashboardBase = (config.dashboardUrl || "http://localhost:5173").replace(/\/+$/, "");
+
+    if (info.menuItemId === "bg-check-in-page") {
+      if (tab && tab.id) {
+        chrome.tabs.sendMessage(
+          tab.id,
+          { type: "INSPECT_LINK_IN_PAGE", url: targetUrl },
+          async (response) => {
+            if (chrome.runtime.lastError || !response) {
+              // Dynamically inject content scripts if tab was opened before extension reload
+              try {
+                if (chrome.scripting) {
+                  await chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    files: ["whitelist.js", "content.js"]
+                  });
+                  await chrome.scripting.insertCSS({
+                    target: { tabId: tab.id },
+                    files: ["content.css"]
+                  });
+                  chrome.tabs.sendMessage(tab.id, { type: "INSPECT_LINK_IN_PAGE", url: targetUrl });
+                }
+              } catch (e) {
+                // If on a restricted browser internal page (e.g. chrome://) where content scripts cannot execute,
+                // fall back to isolation tab
+                const target = `${dashboardBase}/?isolate=${encodeURIComponent(targetUrl)}&ext_token=${encodeURIComponent(config.apiKey || "bg_ext_admin_live_token_777")}`;
+                chrome.tabs.create({ url: target });
+              }
+            }
+          }
+        );
+      }
+    } else if (info.menuItemId === "bg-isolate-link") {
+      const target = `${dashboardBase}/?isolate=${encodeURIComponent(targetUrl)}&ext_token=${encodeURIComponent(config.apiKey || "bg_ext_admin_live_token_777")}`;
+      chrome.tabs.create({ url: target });
+    }
+  });
+}
 
 async function getConfig() {
   const stored = await chrome.storage.local.get("config");
@@ -65,7 +136,10 @@ function evaluateClientHeuristics(url) {
     const port = parsed.port;
     const pathname = (parsed.pathname || "").toLowerCase();
     const isIpHost = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || hostname.includes("[");
-    const executableExts = [".sh", ".bin", ".elf", ".exe", ".bat", ".ps1", ".apk", ".vbs", ".dll", ".scr", ".msi", ".iso", ".cmd", ".hta"];
+    const executableExts = [
+      ".sh", ".bin", ".elf", ".exe", ".bat", ".ps1", ".apk", ".vbs", ".dll", ".scr", ".msi", ".iso", ".cmd", ".hta",
+      ".mipsel", ".mips", ".sh4", ".arm", ".armv4l", ".armv5l", ".armv6l", ".armv7l", ".x86", ".x86_64", ".ppc", ".spc", ".arc"
+    ];
     const hasExecutablePayload = executableExts.some((ext) => pathname.endsWith(ext) || pathname.includes(ext + "?") || pathname.includes(ext + "/"));
     const isAbnormalPort = port && port !== "80" && port !== "443";
 
@@ -74,7 +148,7 @@ function evaluateClientHeuristics(url) {
         verdict: "MALICIOUS",
         risk_score: 98,
         recommended_action: "BLOCK",
-        reason: `Malware dropper payload detected (${pathname}): Direct execution of shell script or binary payload from untrusted host ${hostname}${port ? `:${port}` : ""}.`
+        reason: `Malware dropper / botnet payload detected (${pathname}): Direct execution of shell script or binary architecture payload from untrusted host ${hostname}${port ? `:${port}` : ""}.`
       };
     }
 
@@ -110,8 +184,10 @@ function evaluateClientHeuristics(url) {
 
     const brandChecks = [
       { brand: "paypal", legit: ["paypal.com", "paypal.me"] },
+      { brand: "google", legit: ["google.com", "google.co", "google.ca", "google.co.uk", "google.co.in", "googlevideo.com", "googleusercontent.com", "gstatic.com", "withgoogle.com", "1e100.net"] },
       { brand: "microsoft", legit: ["microsoft.com", "live.com", "office.com", "office365.com", "azure.com"] },
       { brand: "apple", legit: ["apple.com", "icloud.com"] },
+      { brand: "amazon", legit: ["amazon.com", "amazon.in", "amazon.co.uk", "amazon.de", "aws.amazon.com"] },
       { brand: "netflix", legit: ["netflix.com"] }
     ];
     for (const b of brandChecks) {
@@ -126,6 +202,31 @@ function evaluateClientHeuristics(url) {
           };
         }
       }
+    }
+
+    const malwarePathRegex = /(?:decapitate|gate\.php|payload|dropper|stealer|stealers|exploit|inject|bypass|ransom|crack|botnet|rat|trojan|keylogger|shell\.php|upload\.php|cmd\.php|bot\.php|miner\.js|payload\.bin|c2|beacon|grabber)/i;
+    if (malwarePathRegex.test(pathname) || malwarePathRegex.test(parsed.search || "")) {
+      return {
+        verdict: "MALICIOUS",
+        risk_score: 95,
+        recommended_action: "BLOCK",
+        reason: `Malware dropper / C2 script pattern detected in URL path (${pathname}).`
+      };
+    }
+
+    const suspiciousTlds = [
+      ".club", ".top", ".work", ".click", ".buzz", ".fit", ".gq", ".cf", ".ml", ".tk",
+      ".mov", ".zip", ".xyz", ".monster", ".cfd", ".pw", ".icu", ".cam", ".sbs", ".rest",
+      ".country", ".stream", ".link", ".surf", ".online", ".site", ".space", ".quest",
+      ".live", ".shop", ".beauty", ".date", ".racing", ".download", ".bid", ".loan", ".win", ".su", ".cc"
+    ];
+    if (suspiciousTlds.some((tld) => hostname.endsWith(tld))) {
+      return {
+        verdict: "SUSPICIOUS",
+        risk_score: 75,
+        recommended_action: "ISOLATE",
+        reason: `High-abuse top-level domain (${hostname.slice(hostname.lastIndexOf("."))}) detected.`
+      };
     }
   } catch {}
   return null;
@@ -178,14 +279,19 @@ async function fastCheckThroughApi(url, config) {
     : { "X-API-Key": config.apiKey || "bg_ext_admin_live_token_777" };
 
   try {
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 3000);
+
     const resp = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...authHeaders
       },
-      body: JSON.stringify({ url })
+      body: JSON.stringify({ url }),
+      signal: abortController.signal
     });
+    clearTimeout(timeoutId);
 
     if (resp.ok) {
       const json = await resp.json();

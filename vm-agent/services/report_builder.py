@@ -223,6 +223,68 @@ def extract_http_redirect_events(
     return events
 
 
+def extract_subresource_redirect_events(
+    redirects: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """
+    Normalize sub-resource (CSS, JS, Image, Font) HTTP redirect events.
+    """
+
+    raw_events = first_present(
+        redirects,
+        "subresource_redirects",
+        "subresources",
+        default=[],
+    )
+
+    events: list[dict[str, Any]] = []
+
+    for index, raw_event in enumerate(
+        as_list(raw_events),
+        start=1,
+    ):
+        if not isinstance(raw_event, dict):
+            continue
+
+        events.append(
+            {
+                "sequence": index,
+                "type": "subresource_redirect",
+                "resource_type": raw_event.get("resource_type") or "other",
+                "source_url": first_present(
+                    raw_event,
+                    "source_url",
+                    "from_url",
+                    "request_url",
+                    "url",
+                ),
+                "target_url": first_present(
+                    raw_event,
+                    "target_url",
+                    "destination_url",
+                    "to_url",
+                    "location",
+                    "redirect_url",
+                ),
+                "status_code": first_present(
+                    raw_event,
+                    "status_code",
+                    "status",
+                    "response_status",
+                    default=301,
+                ),
+                "timestamp": first_present(
+                    raw_event,
+                    "timestamp",
+                    "observed_at",
+                    "created_at",
+                ),
+            }
+        )
+
+    return events
+
+
 def extract_client_redirect_events(
     client_redirects: dict[str, Any],
 ) -> list[dict[str, Any]]:
@@ -755,6 +817,10 @@ def build_report(
         redirects
     )
 
+    subresource_events = extract_subresource_redirect_events(
+        redirects
+    )
+
     client_events = extract_client_redirect_events(
         client_redirects
     )
@@ -958,6 +1024,9 @@ def build_report(
             "http_redirect_count": (
                 redirect_count
             ),
+            "subresource_redirect_count": len(
+                subresource_events
+            ),
             "client_redirect_count": (
                 client_counts["total"]
             ),
@@ -1091,6 +1160,10 @@ def build_report(
             "http_redirects": {
                 "count": redirect_count,
                 "events": http_events,
+                "subresource_count": len(
+                    subresource_events
+                ),
+                "subresource_events": subresource_events,
                 "loop_detected": first_present(
                     redirects,
                     "redirect_loop_detected",

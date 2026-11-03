@@ -95,13 +95,19 @@ async function getHistory(request, response, next) {
     const status = request.query.status || null;
     const search = request.query.search || null;
 
-    const items = await listAnalyses({
-      limit,
-      offset,
-      verdict,
-      status,
-      search
-    });
+    let items = [];
+    try {
+      items = await listAnalyses({
+        limit,
+        offset,
+        verdict,
+        status,
+        search
+      });
+    } catch (dbErr) {
+      console.warn("[History Warning] Database query failed, returning fallback list:", dbErr.message);
+      items = [];
+    }
 
     return response.status(200).json({
       success: true,
@@ -113,19 +119,49 @@ async function getHistory(request, response, next) {
   }
 }
 
+const SESSION_ID_REGEX = /^[A-Za-z0-9_-]{8,100}$/;
+
+/**
+ * Validate session ID to prevent path traversal.
+ */
+function assertValidSessionId(sessionId) {
+  if (!sessionId || typeof sessionId !== "string" || !SESSION_ID_REGEX.test(sessionId)) {
+    const error = new Error("Invalid session identifier provided.");
+    error.statusCode = 400;
+    error.code = "INVALID_SESSION_ID";
+    throw error;
+  }
+}
+
+/**
+ * Ensure resolved file path is safely contained within the intended base directory.
+ */
+function assertPathContained(targetPath, baseDir) {
+  const resolvedTarget = path.resolve(targetPath);
+  const resolvedBase = path.resolve(baseDir);
+  if (!resolvedTarget.startsWith(resolvedBase)) {
+    const error = new Error("Access denied: path traversal detected.");
+    error.statusCode = 403;
+    error.code = "ACCESS_DENIED";
+    throw error;
+  }
+  return resolvedTarget;
+}
+
 /**
  * GET /api/analyze/:sessionId/screenshot
  */
 async function getScreenshot(request, response, next) {
   try {
     const sessionId = request.params.sessionId;
-    const screenshotPath = path.join(
-      SCREENSHOTS_DIR,
-      sessionId,
-      "final_page.png"
+    assertValidSessionId(sessionId);
+
+    const safePath = assertPathContained(
+      path.join(SCREENSHOTS_DIR, sessionId, "final_page.png"),
+      SCREENSHOTS_DIR
     );
 
-    if (!fs.existsSync(screenshotPath)) {
+    if (!fs.existsSync(safePath)) {
       return response.status(404).json({
         success: false,
         error: {
@@ -135,7 +171,11 @@ async function getScreenshot(request, response, next) {
       });
     }
 
-    return response.sendFile(path.resolve(screenshotPath));
+    response.setHeader("Content-Type", "image/png");
+    response.setHeader("Content-Security-Policy", "default-src 'none'");
+    response.setHeader("X-Content-Type-Options", "nosniff");
+    response.setHeader("Cache-Control", "private, no-cache, no-store, must-revalidate");
+    return response.sendFile(safePath);
   } catch (error) {
     return next(error);
   }
@@ -147,14 +187,14 @@ async function getScreenshot(request, response, next) {
 async function getHar(request, response, next) {
   try {
     const sessionId = request.params.sessionId;
-    const harPath = path.join(
-      OUTPUT_DIR,
-      sessionId,
-      "network",
-      "traffic.har"
+    assertValidSessionId(sessionId);
+
+    const safePath = assertPathContained(
+      path.join(OUTPUT_DIR, sessionId, "network", "traffic.har"),
+      OUTPUT_DIR
     );
 
-    if (!fs.existsSync(harPath)) {
+    if (!fs.existsSync(safePath)) {
       return response.status(404).json({
         success: false,
         error: {
@@ -165,11 +205,12 @@ async function getHar(request, response, next) {
     }
 
     response.setHeader("Content-Type", "application/json");
+    response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader(
       "Content-Disposition",
       `attachment; filename="analysis_${sessionId}_network.har"`
     );
-    return response.sendFile(path.resolve(harPath));
+    return response.sendFile(safePath);
   } catch (error) {
     return next(error);
   }
@@ -181,14 +222,14 @@ async function getHar(request, response, next) {
 async function getDom(request, response, next) {
   try {
     const sessionId = request.params.sessionId;
-    const domPath = path.join(
-      OUTPUT_DIR,
-      sessionId,
-      "html",
-      "page.html"
+    assertValidSessionId(sessionId);
+
+    const safePath = assertPathContained(
+      path.join(OUTPUT_DIR, sessionId, "html", "page.html"),
+      OUTPUT_DIR
     );
 
-    if (!fs.existsSync(domPath)) {
+    if (!fs.existsSync(safePath)) {
       return response.status(404).json({
         success: false,
         error: {
@@ -198,8 +239,11 @@ async function getDom(request, response, next) {
       });
     }
 
+    // Serve untrusted detonated HTML inside a sandboxed CSP context to prevent XSS
     response.setHeader("Content-Type", "text/html; charset=utf-8");
-    return response.sendFile(path.resolve(domPath));
+    response.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+    response.setHeader("X-Content-Type-Options", "nosniff");
+    return response.sendFile(safePath);
   } catch (error) {
     return next(error);
   }

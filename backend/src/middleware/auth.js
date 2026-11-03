@@ -186,31 +186,43 @@ async function authenticateClient(req, res, next) {
 
     // A. Authenticate Browser Extension Token
     if (extToken) {
-      const userRes = await pool.query(
-        `SELECT u.id, u.email, u.full_name, u.role, u.is_active,
-                COALESCE(om.organization_id, $2) as organization_id
-         FROM users u
-         LEFT JOIN organization_members om ON om.user_id = u.id
-         WHERE u.extension_token = $1 AND u.is_active = TRUE
-         LIMIT 1;`,
-        [extToken, DEFAULT_ORG_ID]
-      );
+      let user = null;
+      try {
+        const userRes = await pool.query(
+          `SELECT u.id, u.email, u.full_name, u.role, u.is_active,
+                  COALESCE(om.organization_id, $2) as organization_id
+           FROM users u
+           LEFT JOIN organization_members om ON om.user_id = u.id
+           WHERE u.extension_token = $1 AND u.is_active = TRUE
+           LIMIT 1;`,
+          [extToken, DEFAULT_ORG_ID]
+        );
+        if (userRes.rows.length > 0) {
+          user = userRes.rows[0];
+        }
+      } catch (dbErr) {
+        console.error("[Auth Error] Database query failed during extension token validation:", dbErr.message);
+        return res.status(503).json({
+          error: "SERVICE_UNAVAILABLE",
+          message: "Authentication service is temporarily unavailable. Please try again shortly."
+        });
+      }
 
-      if (userRes.rows.length === 0) {
+      if (!user) {
         return res.status(401).json({
           error: "INVALID_EXTENSION_TOKEN",
           message: "The provided extension pairing token is invalid or deactivated."
         });
       }
 
-      const user = userRes.rows[0];
       req.user = {
         id: user.id,
         email: user.email,
         fullName: user.full_name,
-        role: user.role
+        role: user.role,
+        organizationId: user.organization_id || DEFAULT_ORG_ID
       };
-      req.orgId = user.organization_id;
+      req.orgId = user.organization_id || DEFAULT_ORG_ID;
       req.sourceChannel = "EXTENSION";
       return next();
     }
@@ -270,7 +282,8 @@ async function authenticateClient(req, res, next) {
         req.user = {
           id: decoded.userId,
           email: decoded.email,
-          role: decoded.role
+          role: decoded.role,
+          organizationId: decoded.orgId || DEFAULT_ORG_ID
         };
         req.orgId = decoded.orgId || DEFAULT_ORG_ID;
         req.sourceChannel = "MANUAL";
@@ -290,7 +303,13 @@ async function authenticateClient(req, res, next) {
     req.sourceChannel = "MANUAL";
     return next();
   } catch (err) {
-    console.error("Auth middleware error:", err);
+    console.error("[Auth Middleware Error]", err);
+    if (err.code === "57P03" || (err.message && err.message.includes("recovery mode")) || err.code === "ECONNREFUSED") {
+      return res.status(503).json({
+        error: "SERVICE_UNAVAILABLE",
+        message: "Authentication service is temporarily unavailable. Please retry in a few moments."
+      });
+    }
     return res.status(500).json({
       error: "INTERNAL_ERROR",
       message: "Failed to authenticate request context."

@@ -307,10 +307,10 @@ export default function EmlDetonationModal({ isOpen, onClose, onLaunchRbi, onSta
           width: "100%",
           maxWidth: "1050px",
           maxHeight: "92vh",
-          backgroundColor: "#071020",
-          border: "1px solid rgba(0, 172, 245, 0.4)",
+          backgroundColor: "var(--bg-panel)",
+          border: "1px solid var(--border-subtle)",
           borderRadius: "14px",
-          boxShadow: "0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 35px rgba(0, 172, 245, 0.15)",
+          boxShadow: "var(--shadow-panel)",
           display: "flex",
           flexDirection: "column",
           overflow: "hidden"
@@ -320,11 +320,11 @@ export default function EmlDetonationModal({ isOpen, onClose, onLaunchRbi, onSta
         <div
           style={{
             padding: "18px 24px",
-            borderBottom: "1px solid rgba(51, 65, 85, 0.5)",
+            borderBottom: "1px solid var(--border-subtle)",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            background: "linear-gradient(90deg, #071020 0%, #0b1730 100%)"
+            background: "var(--bg-panel-header)"
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -345,7 +345,7 @@ export default function EmlDetonationModal({ isOpen, onClose, onLaunchRbi, onSta
             </div>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <h2 style={{ margin: 0, fontSize: "1.18rem", fontWeight: 800, color: "#f8fafc" }}>
+                <h2 style={{ margin: 0, fontSize: "1.18rem", fontWeight: 800, color: "var(--text-primary)" }}>
                   Email Forensics & Sandbox Detonation Studio
                 </h2>
                 <span

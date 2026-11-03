@@ -30,6 +30,9 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-Daksh123}@postgres:5432/${POSTGRES_DB:-Browser_Isolation}
       SANDBOX_SHARED_ROOT: /shared
+      JWT_SECRET: ${JWT_SECRET:-browseguard_secret_jwt_key_2026_enterprise_99}
+      INGEST_SECRET: ${INGEST_SECRET:-bg_internal_worker_ingest_secret_2026}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080,http://localhost:5173,http://localhost:3000}
       BROWSEGUARD_WEBHOOK_SECRET: ${BROWSEGUARD_WEBHOOK_SECRET:-bg_wh_secret_default_2026}
     ports:
       - "3000:3000"
@@ -52,12 +55,17 @@ services:
     container_name: browseguard-worker
     restart: unless-stopped
     environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-Daksh123}@postgres:5432/${POSTGRES_DB:-Browser_Isolation}
+      BACKEND_HOST: backend:3000
+      INGEST_SECRET: ${INGEST_SECRET:-bg_internal_worker_ingest_secret_2026}
       SHARED_ROOT: /shared
       POLL_INTERVAL_SECONDS: 1.0
       BROWSEGUARD_ENVIRONMENT: isolated_container
     volumes:
       - sandbox_shared:/shared
     depends_on:
+      postgres:
+        condition: service_healthy
       backend:
         condition: service_healthy
 

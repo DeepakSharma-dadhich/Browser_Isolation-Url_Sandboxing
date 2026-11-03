@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 
 /**
- * ANY.RUN-inspired Indicators of Compromise (IOC) & MITRE ATT&CK Matrix Panel.
+ * BrowseGuard Indicators of Compromise (IOC) & MITRE ATT&CK Matrix Panel.
  * Provides SOC analysts with 1-click exportable threat intelligence.
  */
 export default function IocPanel({ analysisId, iocsData }) {
@@ -56,13 +56,13 @@ export default function IocPanel({ analysisId, iocsData }) {
   };
 
   return (
-    <article className="panel" style={{ marginTop: "16px", border: "1px solid rgba(59, 130, 246, 0.3)" }}>
+    <article className="panel" style={{ marginTop: "16px", border: "1px solid var(--border-subtle)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", marginBottom: "16px" }}>
         <div>
-          <p className="section-label" style={{ color: "#38bdf8", marginBottom: "4px" }}>Threat Intelligence & TTPs (ANY.RUN Standard)</p>
+          <p className="section-label" style={{ color: "var(--brand-sky)", marginBottom: "4px" }}>Threat Intelligence & TTPs (BrowseGuard Standard)</p>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <h2 style={{ fontSize: "1.2rem", margin: 0 }}>Indicators of Compromise (IOCs) & MITRE ATT&CK</h2>
-            <span style={{ fontSize: "0.72rem", padding: "2px 8px", borderRadius: "999px", background: "rgba(168, 85, 247, 0.2)", color: "#d8b4fe", border: "1px solid rgba(168, 85, 247, 0.4)", fontWeight: 700 }}>
+            <h2 style={{ fontSize: "1.2rem", margin: 0, color: "var(--text-primary)" }}>Indicators of Compromise (IOCs) & MITRE ATT&CK</h2>
+            <span style={{ fontSize: "0.72rem", padding: "2px 8px", borderRadius: "999px", background: "rgba(168, 85, 247, 0.2)", color: "#a855f7", border: "1px solid rgba(168, 85, 247, 0.4)", fontWeight: 700 }}>
               STIX 2.1 Ready
             </span>
           </div>
@@ -72,7 +72,11 @@ export default function IocPanel({ analysisId, iocsData }) {
             type="button"
             className="preset-pill"
             onClick={handleCopyBlocklist}
-            style={{ background: copied ? "rgba(16, 185, 129, 0.2)" : "rgba(30, 41, 59, 0.9)", color: copied ? "#34d399" : "#e2e8f0" }}
+            style={{
+              background: copied ? "rgba(16, 185, 129, 0.15)" : "var(--bg-card)",
+              color: copied ? "var(--brand-emerald)" : "var(--text-primary)",
+              border: "1px solid var(--border-subtle)"
+            }}
           >
             {copied ? "✓ Blocklist Copied" : "📋 Copy Blocklist"}
           </button>
@@ -80,7 +84,11 @@ export default function IocPanel({ analysisId, iocsData }) {
             type="button"
             className="preset-pill"
             onClick={handleCopyStix}
-            style={{ background: copiedStix ? "rgba(16, 185, 129, 0.2)" : "rgba(30, 41, 59, 0.9)", color: copiedStix ? "#34d399" : "#cbd5e1" }}
+            style={{
+              background: copiedStix ? "rgba(16, 185, 129, 0.15)" : "var(--bg-card)",
+              color: copiedStix ? "var(--brand-emerald)" : "var(--text-primary)",
+              border: "1px solid var(--border-subtle)"
+            }}
           >
             {copiedStix ? "✓ STIX 2.1 Copied" : "📋 Copy STIX JSON"}
           </button>
@@ -97,7 +105,7 @@ export default function IocPanel({ analysisId, iocsData }) {
             type="button"
             className="preset-pill"
             onClick={handleExportJson}
-            style={{ background: "#2563eb", color: "#fff", border: "none", fontWeight: 700 }}
+            style={{ background: "var(--brand-blue)", color: "#fff", border: "none", fontWeight: 700 }}
           >
             📥 Export IOCs (JSON)
           </button>
@@ -107,7 +115,7 @@ export default function IocPanel({ analysisId, iocsData }) {
       {/* MITRE ATT&CK Techniques Grid */}
       {mitreList.length > 0 && (
         <div style={{ marginBottom: "16px" }}>
-          <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#94a3b8", display: "block", marginBottom: "8px" }}>
+          <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-secondary)", display: "block", marginBottom: "8px" }}>
             OBSERVED MITRE ATT&CK TECHNIQUES ({mitreList.length})
           </span>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -118,12 +126,13 @@ export default function IocPanel({ analysisId, iocsData }) {
                   fontSize: "0.8rem",
                   padding: "4px 10px",
                   borderRadius: "6px",
-                  background: "rgba(147, 51, 234, 0.2)",
-                  color: "#d8b4fe",
-                  border: "1px solid rgba(147, 51, 234, 0.5)",
+                  background: "rgba(147, 51, 234, 0.15)",
+                  color: "var(--brand-purple)",
+                  border: "1px solid rgba(147, 51, 234, 0.35)",
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: "6px"
+                  gap: "6px",
+                  fontWeight: 600
                 }}
               >
                 <strong>🎯 {m.id}</strong> {m.name}
@@ -136,14 +145,14 @@ export default function IocPanel({ analysisId, iocsData }) {
       {/* Extracted IOC Summary Lists */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px", marginTop: "12px" }}>
         {/* Domains & Hostnames */}
-        <div style={{ background: "rgba(15, 23, 42, 0.6)", padding: "12px", borderRadius: "6px", border: "1px solid rgba(51, 65, 85, 0.5)" }}>
-          <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#94a3b8", marginBottom: "6px" }}>
+        <div style={{ background: "var(--bg-card)", padding: "12px", borderRadius: "6px", border: "1px solid var(--border-subtle)" }}>
+          <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-secondary)", marginBottom: "6px" }}>
             🌐 DOMAINS ({domains.length})
           </div>
           {domains.length === 0 ? (
-            <span style={{ fontSize: "0.85rem", color: "#64748b" }}>None recorded</span>
+            <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>None recorded</span>
           ) : (
-            <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "0.85rem", wordBreak: "break-all" }}>
+            <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "0.85rem", wordBreak: "break-all", color: "var(--text-primary)" }}>
               {domains.map((d, i) => (
                 <li key={i}><code>{d}</code></li>
               ))}
@@ -152,14 +161,14 @@ export default function IocPanel({ analysisId, iocsData }) {
         </div>
 
         {/* Target & Redirect URLs */}
-        <div style={{ background: "rgba(15, 23, 42, 0.6)", padding: "12px", borderRadius: "6px", border: "1px solid rgba(51, 65, 85, 0.5)" }}>
-          <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#94a3b8", marginBottom: "6px" }}>
+        <div style={{ background: "var(--bg-card)", padding: "12px", borderRadius: "6px", border: "1px solid var(--border-subtle)" }}>
+          <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-secondary)", marginBottom: "6px" }}>
             🔗 NETWORK URL CHAIN ({urls.length})
           </div>
           {urls.length === 0 ? (
-            <span style={{ fontSize: "0.85rem", color: "#64748b" }}>None recorded</span>
+            <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>None recorded</span>
           ) : (
-            <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "0.85rem", wordBreak: "break-all" }}>
+            <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "0.85rem", wordBreak: "break-all", color: "var(--text-primary)" }}>
               {urls.map((u, i) => (
                 <li key={i}><code>{u}</code></li>
               ))}
@@ -168,14 +177,14 @@ export default function IocPanel({ analysisId, iocsData }) {
         </div>
 
         {/* IP Addresses */}
-        <div style={{ background: "rgba(15, 23, 42, 0.6)", padding: "12px", borderRadius: "6px", border: "1px solid rgba(51, 65, 85, 0.5)" }}>
-          <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#94a3b8", marginBottom: "6px" }}>
+        <div style={{ background: "var(--bg-card)", padding: "12px", borderRadius: "6px", border: "1px solid var(--border-subtle)" }}>
+          <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-secondary)", marginBottom: "6px" }}>
             📡 RESOLVED SERVERS / IPS ({ips.length})
           </div>
           {ips.length === 0 ? (
-            <span style={{ fontSize: "0.85rem", color: "#64748b" }}>None recorded</span>
+            <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>None recorded</span>
           ) : (
-            <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "0.85rem" }}>
+            <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "0.85rem", color: "var(--text-primary)" }}>
               {ips.map((ip, i) => (
                 <li key={i}><code>{ip}</code></li>
               ))}

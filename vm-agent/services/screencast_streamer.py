@@ -42,14 +42,16 @@ class ScreencastStreamer:
         self,
         page: Page,
         session_id: str,
-        backend_host: str = "127.0.0.1:3000",
+        backend_host: str | None = None,
         jpeg_quality: int = 65,
         max_width: int = 1280,
         max_height: int = 800,
     ) -> None:
         self.page = page
         self.session_id = session_id
-        self.ws_url = f"ws://{backend_host}/ws/ingest/{session_id}"
+        resolved_host = backend_host or os.environ.get("BACKEND_HOST", "127.0.0.1:3000")
+        ingest_secret = os.environ.get("INGEST_SECRET", "bg_internal_worker_ingest_secret_2026")
+        self.ws_url = f"ws://{resolved_host}/ws/ingest/{session_id}?secret={ingest_secret}"
         self.jpeg_quality = jpeg_quality
         self.max_width = max_width
         self.max_height = max_height

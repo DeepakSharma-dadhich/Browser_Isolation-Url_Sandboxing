@@ -12,7 +12,14 @@ const {
   SUPPORTED_GATEWAYS
 } = require("./subscription.service");
 
-const JWT_SECRET = process.env.JWT_SECRET || "browseguard_jwt_fallback_secret_key_8899";
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("FATAL: JWT_SECRET environment variable is strictly required in production mode.");
+  }
+  console.warn("[Security Warning] JWT_SECRET is not configured. Generating an ephemeral secret for this process session.");
+  return crypto.randomBytes(32).toString("hex");
+})();
+
 const JWT_EXPIRES_IN = "7d";
 
 function generateExtensionToken() {
@@ -45,8 +52,8 @@ async function register({ email, password, fullName, orgName = "Default Organiza
     throw err;
   }
 
-  if (!password || password.length < 6) {
-    const err = new Error("Password must be at least 6 characters long.");
+  if (!password || password.length < 8) {
+    const err = new Error("Password must be at least 8 characters long.");
     err.statusCode = 400;
     throw err;
   }
@@ -63,8 +70,8 @@ async function register({ email, password, fullName, orgName = "Default Organiza
     throw err;
   }
 
-  const salt = bcrypt.genSaltSync(10);
-  const passwordHash = bcrypt.hashSync(password, salt);
+  const salt = await bcrypt.genSalt(10);
+  const passwordHash = await bcrypt.hash(password, salt);
   const extToken = generateExtensionToken();
 
   const client = await pool.connect();

@@ -80,6 +80,11 @@ function enforceGateway(gateway, options = { consumeQuota: true }) {
       return next();
 
     } catch (err) {
+      if (err.code === "57P03" || (err.message && err.message.includes("recovery mode"))) {
+        console.warn("[Gateway Warning] Database recovering, granting temporary pass-through for gateway:", gateway);
+        req.gatewayQuota = { allowed: true, quota_remaining: 999 };
+        return next();
+      }
       const statusCode = err.statusCode || 500;
       return res.status(statusCode).json({
         success: false,

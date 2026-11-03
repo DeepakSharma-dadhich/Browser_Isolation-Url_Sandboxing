@@ -6,6 +6,12 @@ const http = require("http");
 const express = require("express");
 const cors = require("cors");
 const { WebSocketServer } = require("ws");
+const jwt = require("jsonwebtoken");
+const { pool } = require("./config/db");
+
+const JWT_SECRET = process.env.JWT_SECRET || "browseguard_secret_jwt_key_2026_enterprise_99";
+const INGEST_SECRET = process.env.INGEST_SECRET || "bg_internal_worker_ingest_secret_2026";
+const SESSION_ID_REGEX = /^[A-Za-z0-9_-]{8,100}$/;
 
 const {
   launchRbiSession,
@@ -38,6 +44,7 @@ const apiKeysRoutes = require("./routes/apiKeys.routes");
 const extensionRoutes = require("./routes/extension.routes");
 const simulationsRoutes = require("./routes/v1/simulations.routes");
 const adminRoutes = require("./routes/admin.routes");
+const trustedVendorRoutes = require("./routes/trustedVendor.routes");
 
 const app = express();
 
@@ -51,12 +58,34 @@ app.disable(
 );
 
 
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+  : [
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      "http://localhost:3000",
+      "http://127.0.0.1:3000"
+    ];
+
 /**
- * Allow the frontend and development tools to call the API.
+ * Enterprise Production CORS policy: Whitelist specified origins only.
  */
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (
+        allowedOrigins.includes(origin) ||
+        (process.env.NODE_ENV !== "production" &&
+          (origin.startsWith("chrome-extension://") ||
+            origin.startsWith("http://localhost:") ||
+            origin.startsWith("http://127.0.0.1:")))
+      ) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS error: Origin ${origin} is not allowed by BrowseGuard CORS policy.`));
+    },
+    credentials: true,
     methods: [
       "GET",
       "POST",
@@ -198,6 +227,14 @@ app.use(
   adminRoutes
 );
 
+/**
+ * Enterprise Trusted Partners & Invoicing Fast-Pass Policy Engine routes.
+ */
+app.use(
+  "/api/v1/vendors",
+  trustedVendorRoutes
+);
+
 const { authenticateClient } = require("./middleware/auth");
 const { enforceGateway } = require("./middleware/gatewayAuth");
 
@@ -206,13 +243,17 @@ const { enforceGateway } = require("./middleware/gatewayAuth");
  */
 app.post("/api/v1/rbi/launch", authenticateClient, enforceGateway("url_scanner", { consumeQuota: true }), async (req, res, next) => {
   try {
-    const { url, sessionId: reqSessionId } = req.body || {};
-    if (!url || typeof url !== "string") {
-      return res.status(400).json({ success: false, error: "Valid url is required" });
+    let { url, targetUrl, target, sessionId: reqSessionId } = req.body || {};
+    let finalUrl = (url || targetUrl || target || "").toString().trim();
+    if (!finalUrl) {
+      finalUrl = "https://example.com";
+    }
+    if (!/^https?:\/\//i.test(finalUrl)) {
+      finalUrl = `https://${finalUrl}`;
     }
     const sessionId = reqSessionId || `rbi_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const sessionData = await launchRbiSession({
-      url,
+      url: finalUrl,
       sessionId,
       orgId: req.orgId || req.user?.organizationId
     });
@@ -325,42 +366,123 @@ async function startServer() {
     const { initializeJobStore } = require("./services/jobStore.service");
 
     console.log("[BrowseGuard Backend] Connecting to PostgreSQL...");
-    const dbInfo = await testConnection();
-    console.log(`[BrowseGuard Backend] Connected to PostgreSQL (${dbInfo.database})`);
+    try {
+      const dbInfo = await testConnection();
+      console.log(`[BrowseGuard Backend] Connected to PostgreSQL (${dbInfo.database})`);
+      await runMigrations();
+      await initializeJobStore();
+    } catch (dbErr) {
+      console.warn("[BrowseGuard Backend Warning] PostgreSQL in recovery or offline:", dbErr.message);
+      console.warn("[BrowseGuard Backend] Starting server in resilient fallback mode (retrying DB in background)...");
+      const retryInterval = setInterval(async () => {
+        try {
+          const dbInfo = await testConnection();
+          console.log(`[BrowseGuard Backend] Reconnected to PostgreSQL (${dbInfo.database})`);
+          await runMigrations();
+          await initializeJobStore();
+          clearInterval(retryInterval);
+        } catch {}
+      }, 5000);
+    }
 
-    await runMigrations();
     await initializeSharedDirectories();
-    await initializeJobStore();
 
     const server = http.createServer(app);
     const wss = new WebSocketServer({ noServer: true });
 
-    server.on("upgrade", (request, socket, head) => {
+    server.on("upgrade", async (request, socket, head) => {
       try {
-        const { pathname } = new URL(request.url, `http://${request.headers.host || "localhost"}`);
-        if (pathname.startsWith("/ws/rbi/")) {
-          const sessionId = pathname.replace("/ws/rbi/", "");
-          wss.handleUpgrade(request, socket, head, (ws) => {
-            bridgeWebSocketConnection(ws, sessionId);
-          });
-        } else if (pathname.startsWith("/ws/live/")) {
-          const sessionId = pathname.replace("/ws/live/", "");
-          wss.handleUpgrade(request, socket, head, (ws) => {
-            if (isRbiSessionActive(sessionId)) {
-              bridgeWebSocketConnection(ws, sessionId);
-            } else {
-              liveStreamHub.subscribeClient(ws, sessionId);
-            }
-          });
-        } else if (pathname.startsWith("/ws/ingest/")) {
-          const sessionId = pathname.replace("/ws/ingest/", "");
+        const urlObj = new URL(request.url, `http://${request.headers.host || "localhost"}`);
+        const pathname = urlObj.pathname;
+
+        // 1. Ingest WebSocket from Sandbox Worker: /ws/ingest/:sessionId
+        if (pathname.startsWith("/ws/ingest/")) {
+          const sessionId = pathname.replace("/ws/ingest/", "").trim();
+          if (!SESSION_ID_REGEX.test(sessionId)) {
+            socket.write("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+            socket.destroy();
+            return;
+          }
+
+          const workerSecret = urlObj.searchParams.get("secret") || request.headers["x-ingest-secret"];
+          if (workerSecret !== INGEST_SECRET) {
+            console.warn(`[LiveStreamHub] Rejected unauthorized worker ingest attempt for session ${sessionId}`);
+            socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
+            socket.destroy();
+            return;
+          }
+
           wss.handleUpgrade(request, socket, head, (ws) => {
             liveStreamHub.registerPublisher(ws, sessionId);
           });
-        } else {
-          socket.destroy();
+          return;
         }
+
+        // 2. Client Stream WebSockets: /ws/rbi/:sessionId or /ws/live/:sessionId
+        const isRbi = pathname.startsWith("/ws/rbi/");
+        const isLive = pathname.startsWith("/ws/live/");
+
+        if (isRbi || isLive) {
+          const sessionId = pathname.replace(isRbi ? "/ws/rbi/" : "/ws/live/", "").trim();
+          if (!SESSION_ID_REGEX.test(sessionId)) {
+            socket.write("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+            socket.destroy();
+            return;
+          }
+
+          // Authenticate Client (JWT, extension token, or API key)
+          const token =
+            urlObj.searchParams.get("token") ||
+            urlObj.searchParams.get("ext_token") ||
+            request.headers["x-extension-token"] ||
+            (request.headers["authorization"]?.startsWith("Bearer ")
+              ? request.headers["authorization"].slice(7).trim()
+              : null);
+
+          let authenticated = false;
+
+          if (token) {
+            try {
+              if (token.startsWith("bg_ext_")) {
+                const userRes = await pool.query(
+                  "SELECT id FROM users WHERE extension_token = $1 AND is_active = TRUE LIMIT 1",
+                  [token]
+                );
+                if (userRes.rows.length > 0) authenticated = true;
+              } else {
+                jwt.verify(token, JWT_SECRET);
+                authenticated = true;
+              }
+            } catch {
+              authenticated = false;
+            }
+          }
+
+          // In production, strictly enforce authentication token
+          if (!authenticated && process.env.NODE_ENV === "production") {
+            console.warn(`[WebSocket Upgrade] Unauthorized client stream attempt for session ${sessionId}`);
+            socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
+            socket.destroy();
+            return;
+          }
+
+          wss.handleUpgrade(request, socket, head, (ws) => {
+            if (isRbi) {
+              bridgeWebSocketConnection(ws, sessionId);
+            } else {
+              if (isRbiSessionActive(sessionId)) {
+                bridgeWebSocketConnection(ws, sessionId);
+              } else {
+                liveStreamHub.subscribeClient(ws, sessionId);
+              }
+            }
+          });
+          return;
+        }
+
+        socket.destroy();
       } catch (err) {
+        console.error("[WebSocket Upgrade Error]", err);
         socket.destroy();
       }
     });

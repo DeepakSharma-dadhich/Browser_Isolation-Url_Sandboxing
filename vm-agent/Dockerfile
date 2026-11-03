@@ -16,4 +16,10 @@ COPY . /app/
 # Remove host specific artifacts from copy if present
 RUN rm -rf /app/venv /app/.venv /app/shared/input/* /app/shared/processing/* /app/shared/completed/* /app/shared/failed/*
 
+# Security Hardening: Ensure directories belong to non-root pwuser and switch user
+RUN mkdir -p /shared && chown -R pwuser:pwuser /app /shared
+
+USER pwuser
+
 CMD ["python", "worker.py"]
+

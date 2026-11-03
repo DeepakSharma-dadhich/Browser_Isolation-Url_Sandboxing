@@ -5,6 +5,7 @@ const fs = require("fs");
 const { pool } = require("../config/db");
 const { DEFAULT_ORG_ID } = require("../services/analysisRepository");
 const { getUserGatewaySubscriptions } = require("../services/subscription.service");
+const { evaluateThreatIntelligence } = require("../services/threatIntel.service");
 
 /**
  * Verify extension pairing credentials and subscription status.
@@ -47,15 +48,25 @@ async function verifyExtensionPairing(req, res) {
     }
 
     // Lookup organization name
-    const orgRes = await pool.query(
-      "SELECT id, name FROM organizations WHERE id = $1 LIMIT 1;",
-      [organizationId]
-    );
-    const orgName = orgRes.rows[0]?.name || "Default Organization";
+    let orgName = "BrowseGuard Security Org";
+    try {
+      const orgRes = await pool.query(
+        "SELECT id, name FROM organizations WHERE id = $1 LIMIT 1;",
+        [organizationId]
+      );
+      if (orgRes.rows[0]?.name) orgName = orgRes.rows[0].name;
+    } catch (e) {
+      console.warn("[Extension Verify Note] Using fallback org name:", e.message);
+    }
 
     // Lookup gateway subscription for browser_extension
-    const subs = targetUserId ? await getUserGatewaySubscriptions(targetUserId) : null;
-    const extSub = subs ? subs["browser_extension"] : null;
+    let extSub = null;
+    try {
+      const subs = targetUserId ? await getUserGatewaySubscriptions(targetUserId) : null;
+      extSub = subs ? subs["browser_extension"] : null;
+    } catch (e) {
+      console.warn("[Extension Verify Note] Using fallback subscription quota:", e.message);
+    }
 
     return res.status(200).json({
       success: true,
@@ -187,7 +198,10 @@ async function fastCheckUrl(req, res) {
     const pathname = (parsed.pathname || "").toLowerCase();
     const port = parsed.port;
     const isIpHost = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || hostname.includes("[");
-    const executableExts = [".sh", ".bin", ".elf", ".exe", ".bat", ".ps1", ".apk", ".vbs", ".dll", ".scr", ".msi", ".iso", ".cmd", ".hta"];
+    const executableExts = [
+      ".sh", ".bin", ".elf", ".exe", ".bat", ".ps1", ".apk", ".vbs", ".dll", ".scr", ".msi", ".iso", ".cmd", ".hta",
+      ".mipsel", ".mips", ".sh4", ".arm", ".armv4l", ".armv5l", ".armv6l", ".armv7l", ".x86", ".x86_64", ".ppc", ".spc", ".arc"
+    ];
     const hasExecutablePayload = executableExts.some((ext) => pathname.endsWith(ext) || pathname.includes(ext + "?") || pathname.includes(ext + "/"));
     const isAbnormalPort = port && port !== "80" && port !== "443";
 
@@ -197,7 +211,7 @@ async function fastCheckUrl(req, res) {
         verdict: "MALICIOUS",
         risk_score: 98,
         recommended_action: "BLOCK",
-        reason: `Malware dropper payload detected (${pathname}): Direct execution of shell script or binary payload from untrusted host ${hostname}${port ? `:${port}` : ""}.`,
+        reason: `Malware dropper / botnet payload detected (${pathname}): Direct execution of shell script or binary architecture payload from untrusted host ${hostname}${port ? `:${port}` : ""}.`,
         rbi_url: rbiUrl,
         execution_time_ms: Date.now() - startTime
       });
@@ -222,9 +236,11 @@ async function fastCheckUrl(req, res) {
     // Known Phishing Brand Keyword Mimicry in hostname
     const brandChecks = [
       { brand: "paypal", legit: ["paypal.com", "paypal.me"] },
+      { brand: "google", legit: ["google.com", "google.co", "google.ca", "google.co.uk", "google.co.in", "googlevideo.com", "googleusercontent.com", "gstatic.com", "withgoogle.com", "1e100.net"] },
       { brand: "microsoft", legit: ["microsoft.com", "live.com", "office.com", "office365.com", "azure.com"] },
       { brand: "micros0ft", legit: [] },
       { brand: "apple", legit: ["apple.com", "icloud.com"] },
+      { brand: "amazon", legit: ["amazon.com", "amazon.in", "amazon.co.uk", "amazon.de", "aws.amazon.com"] },
       { brand: "netflix", legit: ["netflix.com"] },
       { brand: "binance", legit: ["binance.com"] },
       { brand: "metamask", legit: ["metamask.io"] },
@@ -253,63 +269,98 @@ async function fastCheckUrl(req, res) {
     }
 
     // 2. Check Database Recent Analyses Cache (Cache Hit < 5ms)
-    const cacheResult = await pool.query(
-      `SELECT id, verdict, risk_score, recommended_action, error_message, created_at
-       FROM analyses
-       WHERE submitted_url = $1 OR final_url = $1
-       ORDER BY created_at DESC LIMIT 1;`,
-      [rawUrl]
-    );
+    try {
+      const cacheResult = await pool.query(
+        `SELECT id, verdict, risk_score, recommended_action, error_message, created_at
+         FROM analyses
+         WHERE submitted_url = $1 OR final_url = $1
+         ORDER BY created_at DESC LIMIT 1;`,
+        [rawUrl]
+      );
 
-    if (cacheResult.rows.length > 0) {
-      const row = cacheResult.rows[0];
-      const isHighRisk = row.verdict === "MALICIOUS" || (row.risk_score || 0) >= 60;
+      if (cacheResult.rows.length > 0) {
+        const row = cacheResult.rows[0];
+        const isHighRisk = row.verdict === "MALICIOUS" || (row.risk_score || 0) >= 60;
+        if (isHighRisk) {
+          return res.status(200).json({
+            success: true,
+            verdict: row.verdict || "MALICIOUS",
+            risk_score: row.risk_score || 95,
+            recommended_action: row.recommended_action || "BLOCK",
+            bypass: false,
+            reason: row.error_message || "Known high-risk threat in analysis history.",
+            analysis_id: row.id,
+            rbi_url: rbiUrl,
+            cached: true,
+            execution_time_ms: Date.now() - startTime
+          });
+        }
+        // If cached entry is marked safe, proceed to live Threat Intelligence to prevent false negatives on newly compromised domains
+      }
+
+      // 3. Check Domain Threat History in Database
+      const domainThreatResult = await pool.query(
+        `SELECT id, verdict, risk_score, recommended_action, error_message
+         FROM analyses
+         WHERE (submitted_hostname = $1 OR final_hostname = $1 OR submitted_url ILIKE $2)
+           AND verdict IN ('MALICIOUS', 'SUSPICIOUS')
+         ORDER BY created_at DESC LIMIT 1;`,
+        [hostname, `%${hostname}%`]
+      );
+
+      if (domainThreatResult.rows.length > 0) {
+        const threatRow = domainThreatResult.rows[0];
+        return res.status(200).json({
+          success: true,
+          verdict: threatRow.verdict,
+          risk_score: threatRow.risk_score,
+          recommended_action: threatRow.recommended_action || "ISOLATE",
+          reason: threatRow.error_message || "Domain has known historical threat detections in tenant security database.",
+          analysis_id: threatRow.id,
+          rbi_url: rbiUrl,
+          execution_time_ms: Date.now() - startTime
+        });
+      }
+    } catch (dbErr) {
+      console.warn("[Fast-Check DB Note]", dbErr.message);
+    }
+
+    // 4. Live Threat Intelligence & AI Lexical Engine (Cloudflare, Quad9, TLD abuse, Shannon Entropy, Payload Scripts)
+    const tiResult = await evaluateThreatIntelligence(rawUrl);
+
+    if (tiResult.isMalicious || tiResult.verdict === "MALICIOUS") {
+      // Async persist threat record to SOC database so analysts have full visibility
+      pool.query(
+        `INSERT INTO analyses (
+           organization_id, submitted_url, submitted_hostname, final_url, final_hostname,
+           status, verdict, risk_score, recommended_action, error_message, source_channel
+         ) VALUES ($1, $2, $3, $4, $5, 'COMPLETED', $6, $7, $8, $9, 'BROWSER_EXTENSION')
+         ON CONFLICT DO NOTHING;`,
+        [DEFAULT_ORG_ID, rawUrl, hostname, rawUrl, hostname, tiResult.verdict, tiResult.risk_score, tiResult.recommended_action, tiResult.primary_reason]
+      ).catch((e) => console.warn("[FastCheck Auto-Cache Note]", e.message));
+
       return res.status(200).json({
         success: true,
-        verdict: row.verdict || "SAFE",
-        risk_score: row.risk_score || 0,
-        recommended_action: row.recommended_action || "ALLOW",
-        bypass: !isHighRisk,
-        analysis_id: row.id,
+        verdict: tiResult.verdict,
+        risk_score: tiResult.risk_score,
+        recommended_action: tiResult.recommended_action,
+        bypass: false,
+        reason: tiResult.primary_reason,
+        threat_indicators: tiResult.threat_indicators,
         rbi_url: rbiUrl,
-        cached: true,
         execution_time_ms: Date.now() - startTime
       });
     }
 
-    // 3. Check Domain Threat History in Database
-    const domainThreatResult = await pool.query(
-      `SELECT id, verdict, risk_score, recommended_action
-       FROM analyses
-       WHERE (submitted_hostname = $1 OR final_hostname = $1 OR submitted_url ILIKE $2)
-         AND verdict IN ('MALICIOUS', 'SUSPICIOUS')
-       ORDER BY created_at DESC LIMIT 1;`,
-      [hostname, `%${hostname}%`]
-    );
-
-    if (domainThreatResult.rows.length > 0) {
-      const threatRow = domainThreatResult.rows[0];
-      return res.status(200).json({
-        success: true,
-        verdict: threatRow.verdict,
-        risk_score: threatRow.risk_score,
-        recommended_action: threatRow.recommended_action || "ISOLATE",
-        reason: "Domain has known historical threat detections in tenant security database.",
-        rbi_url: rbiUrl,
-        execution_time_ms: Date.now() - startTime
-      });
-    }
-
-    // 4. Suspicious TLD Heuristic Check
-    const suspiciousTlds = [".top", ".work", ".click", ".buzz", ".fit", ".gq", ".cf", ".ml", ".tk", ".mov", ".zip"];
-    const hasSuspiciousTld = suspiciousTlds.some((tld) => hostname.endsWith(tld));
-    if (hasSuspiciousTld) {
+    if (tiResult.isSuspicious || tiResult.verdict === "SUSPICIOUS") {
       return res.status(200).json({
         success: true,
         verdict: "SUSPICIOUS",
-        risk_score: 65,
+        risk_score: tiResult.risk_score,
         recommended_action: "ISOLATE",
-        reason: "High-abuse top-level domain without established reputation.",
+        bypass: false,
+        reason: tiResult.primary_reason,
+        threat_indicators: tiResult.threat_indicators,
         rbi_url: rbiUrl,
         requires_sandbox: true,
         execution_time_ms: Date.now() - startTime
@@ -321,6 +372,7 @@ async function fastCheckUrl(req, res) {
       success: true,
       verdict: "SAFE",
       risk_score: 0,
+      recommended_action: "ALLOW",
       bypass: true,
       reason: "Clean domain reputation and safe static heuristics.",
       execution_time_ms: Date.now() - startTime
@@ -329,10 +381,11 @@ async function fastCheckUrl(req, res) {
     console.error("[Fast-Check Error]", err);
     return res.status(200).json({
       success: true,
-      verdict: "SAFE",
-      risk_score: 0,
-      bypass: true,
-      error: err.message,
+      verdict: "UNVERIFIED",
+      risk_score: 50,
+      recommended_action: "ISOLATE",
+      bypass: false,
+      reason: "Scan evaluation interrupted: " + err.message,
       execution_time_ms: Date.now() - startTime
     });
   }

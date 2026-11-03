@@ -161,6 +161,7 @@ Expected output:
 
 ## 6. Documentation Index
 
+- [Team Onboarding & Project Story Guide](docs/ONBOARDING_AND_ARCHITECTURE_STORY.md)
 - [System Architecture & Threat Model](docs/ARCHITECTURE.md)
 - [Email Security Gateway Integration Guide](docs/EMAIL_INTEGRATION_GUIDE.md)
 - [Docker Production Deployment Guide](docs/DEPLOYMENT_DOCKER.md)

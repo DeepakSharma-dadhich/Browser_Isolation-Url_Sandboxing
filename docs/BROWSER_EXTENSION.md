@@ -49,7 +49,16 @@ The **BrowseGuard Zero-Trust URL Shield** is a Manifest V3 browser extension for
        - **Abort & Close (Recommended)**: Cancels navigation.
        - **Inspect Canonical Forensic Report**: Opens the full report in BrowseGuard's web dashboard.
 
-### 4.2 Toolbar Popup Quick Scanner
+### 4.2 Right-Click In-Page Link Safety Check (Zero Redirection)
+- On any webpage, right-click any link and select:
+  - **`🛡️ Check Link Safety (In-Page)`**:
+    1. Inspects destination without navigating away or opening new tabs.
+    2. **🟢 Safe:** Displays a floating emerald card with risk score `0/100`, verified destination preview, and 1-click open or dismiss (auto-closes in 6s).
+    3. **🟡 Suspicious / 🔴 Malicious:** Displays in-page threat modal with risk score, deceptive indicators, and options to detonate in safe isolation or abort.
+  - **`⚡ Open in Isolated Sandbox (New Tab)`**:
+    - Power user shortcut to launch a remote container for the link immediately in a new tab.
+
+### 4.3 Toolbar Popup Quick Scanner
 - Click the shield icon in the browser toolbar:
   - View real-time protection statistics: **Links Scanned** and **Threats Blocked**.
-  - Paste any suspicious URL directly into the **Quick Threat Scanner** to trigger an immediate sandbox analysis.
+  - Paste any suspicious URL directly into the **Quick Threat Scanner** to inspect without leaving the popup.

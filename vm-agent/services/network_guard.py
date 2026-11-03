@@ -81,10 +81,18 @@ BLOCKED_IP_NETWORKS: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = [
     ipaddress.ip_network("fc00::/7"),
     ipaddress.ip_network("fe80::/10"),
     ipaddress.ip_network("ff00::/8"),
-    ipaddress.ip_network("::ffff:0:0/96"),
-    ipaddress.ip_network("64:ff9b::/96"),
+    # IPv6 Loopback, Unspecified & Local
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("::/128"),
+    ipaddress.ip_network("fc00::/7"),
+    ipaddress.ip_network("fe80::/10"),
+    ipaddress.ip_network("ff00::/8"),
     ipaddress.ip_network("2001:db8::/32"),
 ]
+
+# RFC 6052 Well-Known NAT64 Prefix & Standard IPv4-Mapped IPv6 Prefix
+NAT64_PREFIX = ipaddress.ip_network("64:ff9b::/96")
+IPV4_MAPPED_PREFIX = ipaddress.ip_network("::ffff:0:0/96")
 
 
 def utc_now_iso() -> str:
@@ -94,7 +102,19 @@ def utc_now_iso() -> str:
 def is_ip_in_blocked_networks(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     """
     Check if an IP address belongs to any blocked private or reserved ranges.
+    Includes smart NAT64 (RFC 6052) and IPv4-mapped decoding: extracts the
+    embedded IPv4 address to evaluate whether the underlying destination is
+    public vs private/reserved, preventing false-positive blocks on dual-stack networks.
     """
+    # If IPv6 address uses NAT64 (RFC 6052) or IPv4-mapped IPv6, extract the embedded IPv4
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip in NAT64_PREFIX or ip in IPV4_MAPPED_PREFIX:
+            try:
+                embedded_ipv4 = ipaddress.IPv4Address(ip.packed[-4:])
+                return is_ip_in_blocked_networks(embedded_ipv4)
+            except Exception:
+                pass
+
     if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
         return True
 
@@ -261,9 +281,37 @@ class NetworkGuard:
                 request.method,
             )
             try:
-                route.abort("blockedbyclient")
+                if request.is_navigation_request():
+                    custom_html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>BrowseGuard Security Egress Intercept</title>
+    <style>
+        body {{ background: #070d19; color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }}
+        .card {{ background: #0f172a; border: 1px solid #ef4444; border-radius: 12px; padding: 36px; max-width: 540px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.6); text-align: center; }}
+        h1 {{ color: #ef4444; font-size: 20px; margin-top: 0; display: flex; align-items: center; justify-content: center; gap: 8px; }}
+        p {{ color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 16px 0; }}
+        .badge {{ background: #450a0a; color: #fca5a5; padding: 6px 12px; border-radius: 6px; font-family: monospace; font-size: 13px; word-break: break-all; display: inline-block; }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🛡️ Restricted Internal Egress Blocked</h1>
+        <p>BrowseGuard Zero-Trust Network Guard prevented an egress attempt to an internal host, link-local, or private IP network address.</p>
+        <div class="badge">{block_reason}</div>
+        <p style="font-size: 12px; color: #64748b; margin-top: 24px;">Target URL: {req_url}</p>
+    </div>
+</body>
+</html>"""
+                    route.fulfill(status=403, content_type="text/html", body=custom_html)
+                else:
+                    route.abort("blockedbyclient")
             except Exception:
-                pass
+                try:
+                    route.abort("blockedbyclient")
+                except Exception:
+                    pass
         else:
             try:
                 route.continue_()

@@ -1,11 +1,11 @@
 """
-Visual verification of the new Dedicated Multi-Product Landing Page & Refined ANY.RUN Dark SOC Theme.
+Visual verification of the new Dedicated Multi-Product Landing Page & Refined BrowseGuard Dark SOC Theme.
 """
 
 from playwright.sync_api import sync_playwright
 
 def run():
-    print("Starting Multi-Product Landing Page & Refined ANY.RUN Theme walkthrough...")
+    print("Starting Multi-Product Landing Page & Refined BrowseGuard Theme walkthrough...")
     with sync_playwright() as p:
         browser = p.chromium.launch(channel="chrome", headless=True)
         context = browser.new_context(viewport={"width": 1440, "height": 950})
@@ -23,7 +23,7 @@ def run():
         page.locator("button:has-text('Open Sandbox Studio')").click()
         page.wait_for_timeout(1000)
         page.screenshot(path="landing_2_sandbox_studio.png", full_page=True)
-        print("[OK] Navigated into ANY.RUN Sandbox Studio.")
+        print("[OK] Navigated into BrowseGuard Sandbox Studio.")
 
         # Step 3: Return to Portal Hub
         print("Step 3: Returning to Portal Hub...")

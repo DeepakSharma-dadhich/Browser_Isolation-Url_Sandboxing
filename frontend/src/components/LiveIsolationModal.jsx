@@ -7,9 +7,10 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
  * intercepts and dispatches mouse/wheel/keyboard events over WebSockets,
  * completely isolating the user from malicious scripts and zero-day browser exploits.
  */
-export default function LiveIsolationModal({ initialUrl, onClose }) {
+export default function LiveIsolationModal({ initialUrl, targetUrl, onClose }) {
+  const effectiveUrl = (initialUrl || targetUrl || "").toString().trim() || "https://example.com";
   const [sessionData, setSessionData] = useState(null);
-  const [currentUrl, setCurrentUrl] = useState(initialUrl);
+  const [currentUrl, setCurrentUrl] = useState(effectiveUrl);
   const [pageTitle, setPageTitle] = useState("Initializing Isolated Browser...");
   const [status, setStatus] = useState("connecting"); // "connecting" | "active" | "error" | "terminated"
   const [errorMessage, setErrorMessage] = useState("");
@@ -22,6 +23,7 @@ export default function LiveIsolationModal({ initialUrl, onClose }) {
   const lastFpsTimeRef = useRef(Date.now());
   const imgRef = useRef(new Image());
   const sessionIdRef = useRef("");
+  const isMountedRef = useRef(true);
 
   // Countdown timer for interactive isolation
   useEffect(() => {
@@ -42,116 +44,141 @@ export default function LiveIsolationModal({ initialUrl, onClose }) {
     setTimeLeft((prev) => prev + 60);
   };
 
-  // Start session
-  useEffect(() => {
-    let isMounted = true;
+  const urlToLaunchRef = useRef(effectiveUrl);
+  urlToLaunchRef.current = currentUrl || effectiveUrl;
 
-    async function initSession() {
-      try {
-        const token = localStorage.getItem("bg_jwt_token");
-        const params = new URLSearchParams(window.location.search);
-        const extToken = params.get("ext_token") || params.get("token") || localStorage.getItem("bg_ext_token") || "bg_ext_admin_live_token_777";
-        const authHeaders = token
-          ? { Authorization: `Bearer ${token}` }
-          : { "X-Extension-Token": extToken };
+  const initSession = useCallback(async (urlToLaunch) => {
+    try {
+      setStatus("connecting");
+      setErrorMessage("");
 
-        const resp = await fetch("/api/v1/rbi/launch", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeaders
-          },
-          body: JSON.stringify({ url: initialUrl })
-        });
-
-        if (!resp.ok) {
-          const errData = await resp.json().catch(() => ({}));
-          throw new Error(errData.error?.message || errData.error || `HTTP ${resp.status}`);
-        }
-
-        const data = await resp.json();
-        if (!isMounted) return;
-
-        setSessionData(data.data);
-        sessionIdRef.current = data.data.session_id;
-
-        // Connect WebSocket
-        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        const wsUrl = `${protocol}//${window.location.host}${data.data.ws_path}`;
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
-
-        ws.onopen = () => {
-          if (!isMounted) return;
-          setStatus("active");
-        };
-
-        ws.onmessage = (event) => {
-          if (!isMounted) return;
-          try {
-            const msg = JSON.parse(event.data);
-            if (msg.type === "frame" && msg.data) {
-              frameCountRef.current++;
-              const now = Date.now();
-              if (now - lastFpsTimeRef.current >= 1000) {
-                setFps(frameCountRef.current);
-                frameCountRef.current = 0;
-                lastFpsTimeRef.current = now;
-              }
-
-              if (msg.url) setCurrentUrl(msg.url);
-              if (msg.title) setPageTitle(msg.title);
-
-              // Render frame to canvas
-              const canvas = canvasRef.current;
-              if (canvas) {
-                const ctx = canvas.getContext("2d");
-                imgRef.current.onload = () => {
-                  ctx.drawImage(imgRef.current, 0, 0, canvas.width, canvas.height);
-                };
-                imgRef.current.src = `data:image/jpeg;base64,${msg.data}`;
-              }
-            } else if (msg.type === "state") {
-              if (msg.url) setCurrentUrl(msg.url);
-              if (msg.title) setPageTitle(msg.title);
-            }
-          } catch (e) {
-            console.error("Frame parse error:", e);
-          }
-        };
-
-        ws.onerror = (e) => {
-          console.error("RBI WebSocket Error:", e);
-          if (isMounted) {
-            setStatus("error");
-            setErrorMessage("WebSocket connection to isolation sandbox failed.");
-          }
-        };
-
-        ws.onclose = () => {
-          if (isMounted && status !== "error") {
-            setStatus("terminated");
-          }
-        };
-      } catch (err) {
-        if (!isMounted) return;
-        setStatus("error");
-        setErrorMessage(err.message);
+      let target = (urlToLaunch || urlToLaunchRef.current || "https://example.com").toString().trim();
+      if (!target) {
+        target = "https://example.com";
       }
-    }
+      if (!/^https?:\/\//i.test(target)) {
+        target = `https://${target}`;
+      }
+      setCurrentUrl(target);
+      urlToLaunchRef.current = target;
 
-    initSession();
+      const token = localStorage.getItem("bg_jwt_token");
+      const params = new URLSearchParams(window.location.search);
+      const extToken = params.get("ext_token") || params.get("token") || localStorage.getItem("bg_ext_token") || "";
+      const authHeaders = token
+        ? { Authorization: `Bearer ${token}` }
+        : (extToken ? { "X-Extension-Token": extToken } : {});
+
+      // Terminate any previous session before launching a new one
+      if (sessionIdRef.current) {
+        fetch(`/api/v1/rbi/${sessionIdRef.current}/terminate`, { method: "POST" }).catch(() => {});
+        sessionIdRef.current = "";
+      }
+      if (wsRef.current) {
+        try { wsRef.current.close(); } catch {}
+        wsRef.current = null;
+      }
+
+      const resp = await fetch("/api/v1/rbi/launch", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders
+        },
+        body: JSON.stringify({ url: target })
+      });
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        throw new Error(errData.error?.message || errData.error || `HTTP ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      if (!isMountedRef.current) return;
+
+      setSessionData(data.data);
+      sessionIdRef.current = data.data.session_id;
+
+      // Connect WebSocket
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${window.location.host}${data.data.ws_path}`;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (!isMountedRef.current) return;
+        setStatus("active");
+      };
+
+      ws.onmessage = (event) => {
+        if (!isMountedRef.current) return;
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "frame" && msg.data) {
+            frameCountRef.current++;
+            const now = Date.now();
+            if (now - lastFpsTimeRef.current >= 1000) {
+              setFps(frameCountRef.current);
+              frameCountRef.current = 0;
+              lastFpsTimeRef.current = now;
+            }
+
+            if (msg.url) setCurrentUrl(msg.url);
+            if (msg.title) setPageTitle(msg.title);
+
+            // Render frame to canvas
+            const canvas = canvasRef.current;
+            if (canvas) {
+              const ctx = canvas.getContext("2d");
+              imgRef.current.onload = () => {
+                ctx.drawImage(imgRef.current, 0, 0, canvas.width, canvas.height);
+              };
+              imgRef.current.src = `data:image/jpeg;base64,${msg.data}`;
+            }
+          } else if (msg.type === "state") {
+            if (msg.url) setCurrentUrl(msg.url);
+            if (msg.title) setPageTitle(msg.title);
+          }
+        } catch (e) {
+          console.error("Frame parse error:", e);
+        }
+      };
+
+      ws.onerror = (e) => {
+        console.error("RBI WebSocket Error:", e);
+        if (isMountedRef.current) {
+          setStatus("error");
+          setErrorMessage("WebSocket connection to isolation sandbox failed.");
+        }
+      };
+
+      ws.onclose = () => {
+        if (isMountedRef.current) {
+          setStatus((prev) => (prev === "error" ? "error" : "terminated"));
+        }
+      };
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      setStatus("error");
+      setErrorMessage(err.message || "Failed to initialize isolation sandbox.");
+    }
+  }, []);
+
+  // Start session on mount ONLY
+  useEffect(() => {
+    isMountedRef.current = true;
+    initSession(effectiveUrl);
 
     return () => {
-      isMounted = false;
+      isMountedRef.current = false;
       if (wsRef.current) {
-        wsRef.current.close();
+        try { wsRef.current.close(); } catch {}
       }
       if (sessionIdRef.current) {
         fetch(`/api/v1/rbi/${sessionIdRef.current}/terminate`, { method: "POST" }).catch(() => {});
       }
     };
-  }, [initialUrl]);
+  }, [effectiveUrl, initSession]);
 
   // Translate client canvas coordinates to isolated viewport coordinates (1280x800)
   const getCanvasCoords = useCallback((e) => {
@@ -257,6 +284,8 @@ export default function LiveIsolationModal({ initialUrl, onClose }) {
     }
     if (status === "active" && wsRef.current) {
       wsRef.current.send(JSON.stringify({ type: "navigate", url: target }));
+    } else {
+      initSession(target);
     }
   };
 
@@ -376,9 +405,34 @@ export default function LiveIsolationModal({ initialUrl, onClose }) {
               <span style={{ fontSize: "3rem" }}>⚠️</span>
               <h3>Unable to Connect to Isolation Sandbox</h3>
               <p>{errorMessage}</p>
-              <button type="button" className="primary-button" onClick={onClose} style={{ marginTop: "16px" }}>
-                Close Window
-              </button>
+              <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => initSession(currentUrl)}
+                  style={{
+                    background: "linear-gradient(135deg, #0ea5e9, #00e5ff)",
+                    color: "#060d1b",
+                    fontWeight: 800,
+                    border: "none",
+                    boxShadow: "0 0 12px rgba(0, 229, 255, 0.3)"
+                  }}
+                >
+                  🔄 Retry Launch
+                </button>
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={onClose}
+                  style={{
+                    background: "rgba(30, 41, 59, 0.8)",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
+                    color: "#cbd5e1"
+                  }}
+                >
+                  Close Window
+                </button>
+              </div>
             </div>
           )}
 

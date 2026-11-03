@@ -131,10 +131,12 @@ MALICIOUS_EXFIL_HOSTS = {
     "pipedream.net"
 }
 
-# High-abuse TLDs frequently registered by phishing threat actors
+# High-abuse TLDs frequently registered by phishing and malware threat actors
 HIGH_ABUSE_TLDS = {
-    ".top", ".xyz", ".buzz", ".surf", ".work", ".icu",
-    ".cam", ".monster", ".fit", ".gq", ".cf", ".ga", ".ml", ".tk"
+    ".club", ".top", ".xyz", ".buzz", ".surf", ".work", ".icu",
+    ".cam", ".monster", ".fit", ".gq", ".cf", ".ga", ".ml", ".tk",
+    ".mov", ".zip", ".sbs", ".cfd", ".pw", ".live", ".shop", ".beauty",
+    ".date", ".racing", ".download", ".bid", ".loan", ".win", ".su", ".cc"
 }
 
 

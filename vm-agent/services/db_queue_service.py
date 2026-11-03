@@ -33,6 +33,43 @@ class DbQueueService:
     def __init__(self, db_url: str = DATABASE_URL) -> None:
         self.db_url = db_url
 
+    def recover_stuck_jobs(self, timeout_minutes: int = 5) -> int:
+        """
+        Reclaim or fail jobs stuck in 'RUNNING' status for longer than timeout_minutes
+        due to previous worker crash, segfault, or unhandled exit.
+        """
+        try:
+            with psycopg.connect(self.db_url) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE analyses
+                        SET status = 'FAILED',
+                            error_code = 'WORKER_CRASHED_OR_TIMEOUT',
+                            error_message = 'Job execution timed out or worker process was terminated prematurely.',
+                            completed_at = NOW(),
+                            updated_at = NOW()
+                        WHERE status = 'RUNNING'
+                          AND started_at < NOW() - (%s * INTERVAL '1 minute')
+                        RETURNING id;
+                        """,
+                        (timeout_minutes,)
+                    )
+                    recovered = cur.fetchall()
+                    conn.commit()
+                    if recovered:
+                        recovered_ids = [r[0] for r in recovered]
+                        logger.warning(
+                            "Recovered %d zombie/stuck jobs from previous worker runs: %s",
+                            len(recovered_ids),
+                            recovered_ids
+                        )
+                        return len(recovered_ids)
+                    return 0
+        except Exception as exc:
+            logger.error("Error recovering stuck jobs from database: %s", exc)
+            return 0
+
     def claim_next_job(self) -> dict[str, Any] | None:
         """
         Atomically claim the next queued analysis using FOR UPDATE SKIP LOCKED.

@@ -385,13 +385,42 @@ class RedirectCollector:
         self,
         request: Request,
     ) -> bool:
-        """Return True when a request belongs to the main frame."""
+        """Return True when a request is a top-level document navigation in the main frame."""
 
         if self._page is None:
             return False
 
         try:
-            return request.frame == self._page.main_frame
+            # Must belong to the page's top-level/main frame
+            if request.frame != self._page.main_frame:
+                return False
+
+            # In Playwright, is_navigation_request() is True ONLY for frame navigations (not subresources)
+            if hasattr(request, "is_navigation_request"):
+                try:
+                    if request.is_navigation_request():
+                        return True
+                except Exception:
+                    pass
+
+            # Explicitly exclude known sub-resource asset types
+            resource_type = getattr(request, "resource_type", "")
+            if resource_type in {
+                "stylesheet",
+                "image",
+                "media",
+                "font",
+                "script",
+                "texttrack",
+                "xhr",
+                "fetch",
+                "eventsource",
+                "websocket",
+                "manifest",
+            }:
+                return False
+
+            return resource_type == "document"
         except Exception:
             return False
 
