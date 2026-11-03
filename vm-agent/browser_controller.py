@@ -306,32 +306,49 @@ def analyze_url(
             sync_playwright().start()
         )
 
-        browser = (
-            playwright_instance
-            .chromium
-            .launch(
-                channel=os.getenv("SANDBOX_BROWSER_CHANNEL", "chrome"),
+        browser_channel = os.getenv("SANDBOX_BROWSER_CHANNEL")
+        if not browser_channel or not browser_channel.strip():
+            browser_channel = None
+
+        launch_args = [
+            "--disable-dev-shm-usage",
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-background-networking",
+            "--disable-background-timer-throttling",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-breakpad",
+            "--disable-component-update",
+            "--disable-default-apps",
+            "--disable-domain-reliability",
+            "--disable-features=Translate,BackForwardCache,BlockInsecurePrivateNetworkRequests",
+            "--allow-running-insecure-content",
+            "--ignore-certificate-errors",
+            "--disable-hang-monitor",
+            "--disable-renderer-backgrounding",
+            "--disable-sync",
+            "--metrics-recording-only",
+            "--no-first-run",
+        ]
+
+        try:
+            if browser_channel:
+                browser = playwright_instance.chromium.launch(
+                    channel=browser_channel,
+                    headless=BROWSER_HEADLESS,
+                    args=launch_args,
+                )
+            else:
+                browser = playwright_instance.chromium.launch(
+                    headless=BROWSER_HEADLESS,
+                    args=launch_args,
+                )
+        except Exception as launch_exc:
+            logger.warning("Primary browser launch with channel %s failed (%s), falling back to bundled Chromium", browser_channel, launch_exc)
+            browser = playwright_instance.chromium.launch(
                 headless=BROWSER_HEADLESS,
-                args=[
-                    "--disable-dev-shm-usage",
-                    "--disable-background-networking",
-                    "--disable-background-timer-throttling",
-                    "--disable-backgrounding-occluded-windows",
-                    "--disable-breakpad",
-                    "--disable-component-update",
-                    "--disable-default-apps",
-                    "--disable-domain-reliability",
-                    "--disable-features=Translate,BackForwardCache,BlockInsecurePrivateNetworkRequests",
-                    "--allow-running-insecure-content",
-                    "--ignore-certificate-errors",
-                    "--disable-hang-monitor",
-                    "--disable-renderer-backgrounding",
-                    "--disable-sync",
-                    "--metrics-recording-only",
-                    "--no-first-run",
-                ],
+                args=launch_args,
             )
-        )
 
         har_file = paths.network_dir / "traffic.har"
         context = browser.new_context(

@@ -7,10 +7,13 @@ echo "=========================================================="
 
 mkdir -p /shared/input /shared/processing /shared/completed /shared/failed /shared/reports /shared/screenshots /shared/network
 
-# Start Python Playwright Queue Worker in the background
+export PYTHONPATH="/app/vm-agent:/app:$PYTHONPATH"
+export PYTHONUNBUFFERED=1
+
+# Start Python Playwright Queue Worker in the background with unbuffered logging
 echo "[BrowseGuard] Launching isolated VM queue worker..."
 cd /app
-python vm-agent/worker.py &
+python -u vm-agent/worker.py 2>&1 &
 WORKER_PID=$!
 echo "[BrowseGuard] Worker started with PID: $WORKER_PID"
 

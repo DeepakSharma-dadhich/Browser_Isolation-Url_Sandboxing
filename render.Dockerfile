@@ -19,9 +19,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get update && apt-get install -y --no-install-recommends nodejs \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 2. Install Python dependencies
+# 2. Install Python dependencies and Playwright Chromium
 COPY vm-agent/requirements.txt ./vm-agent/
-RUN pip install --no-cache-dir -r vm-agent/requirements.txt
+RUN pip install --no-cache-dir -r vm-agent/requirements.txt && \
+    playwright install chromium
 
 # 3. Install Node.js dependencies
 COPY backend/package*.json ./backend/
