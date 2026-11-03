@@ -6,12 +6,24 @@ const connectionString =
   process.env.DATABASE_URL ||
   "postgresql://postgres:Daksh123@localhost:5432/Browser_Isolation";
 
-const pool = new Pool({
+const isCloudDb =
+  connectionString.includes("neon.tech") ||
+  connectionString.includes("supabase.co") ||
+  connectionString.includes("sslmode=require") ||
+  process.env.NODE_ENV === "production";
+
+const poolConfig = {
   connectionString,
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000
-});
+  connectionTimeoutMillis: 10000
+};
+
+if (isCloudDb && !connectionString.includes("localhost") && !connectionString.includes("127.0.0.1")) {
+  poolConfig.ssl = { rejectUnauthorized: false };
+}
+
+const pool = new Pool(poolConfig);
 
 pool.on("error", (err) => {
   console.error("[PostgreSQL Pool Error]", err);
