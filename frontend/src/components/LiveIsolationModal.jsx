@@ -100,8 +100,14 @@ export default function LiveIsolationModal({ initialUrl, targetUrl, onClose }) {
       sessionIdRef.current = data.data.session_id;
 
       // Connect WebSocket
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}${data.data.ws_path}`;
+      const wsHost =
+        import.meta.env.VITE_BACKEND_WS_URL ||
+        (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+          ? window.location.host
+          : "browseguard-backend.onrender.com");
+      const protocol =
+        window.location.protocol === "https:" || wsHost.includes("onrender.com") ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${wsHost}${data.data.ws_path}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 

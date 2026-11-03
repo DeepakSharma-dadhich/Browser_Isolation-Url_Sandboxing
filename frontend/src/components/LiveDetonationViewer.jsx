@@ -254,14 +254,19 @@ export default function LiveDetonationViewer({
     if (!sessionId) return;
 
     let isMounted = true;
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = window.location.host;
+    const wsHost =
+      import.meta.env.VITE_BACKEND_WS_URL ||
+      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+        ? window.location.host
+        : "browseguard-backend.onrender.com");
+    const protocol =
+      window.location.protocol === "https:" || wsHost.includes("onrender.com") ? "wss:" : "ws:";
     const token = localStorage.getItem("bg_jwt_token");
     const extToken = localStorage.getItem("bg_ext_token");
     const authToken = token || extToken;
     const tokenParam = authToken ? `?token=${encodeURIComponent(authToken)}` : "";
     // Route to live bridge
-    const wsUrl = `${protocol}//${host}/ws/live/${encodeURIComponent(sessionId)}${tokenParam}`;
+    const wsUrl = `${protocol}//${wsHost}/ws/live/${encodeURIComponent(sessionId)}${tokenParam}`;
 
     setConnectionStatus("connecting");
     const ws = new WebSocket(wsUrl);
